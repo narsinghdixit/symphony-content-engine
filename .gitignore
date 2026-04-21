@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+*.sqlite3
+
+# OS
+.DS_Store
+
+# Secrets - never commit
+.env
+.env.local
+.streamlit/secrets.toml
+
+# Generated content - regenerated each run
+inbox/*.docx
+inbox/*.pdf
+inbox/*.md
+!inbox/.gitkeep
+output/
+!output/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+.cursor/
+
+# Cache
+.pytest_cache/
+*.tmp
