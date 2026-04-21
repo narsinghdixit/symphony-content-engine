@@ -25,6 +25,10 @@ inbox/*.md
 output/
 !output/.gitkeep
 
+# Run state files (magic-link approval, ephemeral session data)
+runs/
+!runs/.gitkeep
+
 # IDE
 .vscode/
 .idea/
