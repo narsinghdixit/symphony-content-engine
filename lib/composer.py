@@ -28,9 +28,10 @@ COMPOSER_MODEL = "gemini-2.5-flash"
 # Each asset has:
 #   id            -- matches output filename (without .md)
 #   label         -- shown on the card
-#   icon          -- visual marker
-#   category      -- groups assets in distribution view
-#   distribution  -- which action button(s) appear in Movement IV
+#   icon_name     -- Lucide icon key from lib.icons (rendered as inline SVG)
+#   icon          -- legacy dingbat fallback if icon_name lookup fails
+#   category      -- groups assets in distribution view (linkedin / blog / email / etc.)
+#   distribution  -- which action button(s) appear in Movement III
 #   spec          -- inline summary of what to generate
 
 # Asset list ordering = composition order in Movement II.
@@ -49,6 +50,7 @@ ASSETS = [
     {
         "id": "linkedin-narsingh",
         "label": "LinkedIn Post · Narsingh",
+        "icon_name": "linkedin",
         "icon": "in",
         "category": "linkedin",
         "distribution": "linkedin",
@@ -62,6 +64,7 @@ ASSETS = [
     {
         "id": "blog-post",
         "label": "Blog Post",
+        "icon_name": "book-open",
         "icon": "❡",
         "category": "blog",
         "distribution": "hubspot",
@@ -76,6 +79,7 @@ ASSETS = [
     {
         "id": "nurture-email-1-wealth",
         "label": "Nurture Email 1 · Top of Funnel",
+        "icon_name": "mail",
         "icon": "✉",
         "category": "email",
         "distribution": "copy",
@@ -90,6 +94,7 @@ ASSETS = [
     {
         "id": "bdr-sequence-asset-mgr",
         "label": "BDR Sequence · Asset Manager",
+        "icon_name": "target",
         "icon": "◎",
         "category": "outreach",
         "distribution": "copy",
@@ -104,6 +109,7 @@ ASSETS = [
     {
         "id": "nurture-email-2-wealth",
         "label": "Nurture Email 2 · Mid Funnel",
+        "icon_name": "mail",
         "icon": "✉",
         "category": "email",
         "distribution": "copy",
@@ -119,6 +125,7 @@ ASSETS = [
     {
         "id": "sales-one-pager",
         "label": "Sales One-Pager",
+        "icon_name": "file-text",
         "icon": "❒",
         "category": "sales",
         "distribution": "email_approval",
@@ -133,6 +140,7 @@ ASSETS = [
     {
         "id": "objection-handling",
         "label": "Objection Handling",
+        "icon_name": "message-square-warning",
         "icon": "⟲",
         "category": "enablement",
         "distribution": "copy",
@@ -147,6 +155,7 @@ ASSETS = [
     {
         "id": "nurture-email-3-wealth",
         "label": "Nurture Email 3 · Bottom Funnel",
+        "icon_name": "mail",
         "icon": "✉",
         "category": "email",
         "distribution": "copy",
@@ -161,6 +170,7 @@ ASSETS = [
     {
         "id": "enablement-talking-points",
         "label": "AE Talking Points",
+        "icon_name": "music",
         "icon": "♪",
         "category": "enablement",
         "distribution": "copy",
@@ -175,6 +185,7 @@ ASSETS = [
     {
         "id": "linkedin-ceo",
         "label": "LinkedIn Post · Rob Madej (CEO)",
+        "icon_name": "linkedin",
         "icon": "in",
         "category": "linkedin",
         "distribution": "linkedin",

@@ -23,6 +23,7 @@ import streamlit.components.v1 as components  # noqa: E402
 
 from lib import agents as agentlib  # noqa: E402
 from lib import composer, distribution, email_sender, runs  # noqa: E402
+from lib.icons import icon  # noqa: E402
 from lib.textutils import friendly_error  # noqa: E402
 from lib.theme import COLORS, GRADIENTS, inject_theme  # noqa: E402
 
@@ -32,7 +33,7 @@ from lib.theme import COLORS, GRADIENTS, inject_theme  # noqa: E402
 
 st.set_page_config(
     page_title="Concerto · Project Symphony",
-    page_icon="◈",
+    page_icon="✦",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -49,7 +50,9 @@ inject_theme(st)
 #   tuple = (phase_id, kind, label)   where kind in {"movement", "cue"}.
 MOVEMENTS = [
     ("intelligence", "movement", "Movement I · Intelligence"),
-    ("awaiting_approval", "cue", "◆ The Cue"),
+    # The Cue label embeds an inline bell-ring icon at render time so it picks
+    # up the active/complete color automatically via stroke=currentColor.
+    ("awaiting_approval", "cue", "The Cue"),
     ("executing", "movement", "Movement II · Composition"),
     ("distribution", "movement", "Movement III · Distribution"),
 ]
@@ -202,15 +205,16 @@ def handle_magic_link():
             st.query_params.clear()
         except Exception:
             pass
+        check_glyph = icon("check-circle", size=48, color=COLORS["success"], stroke=1.6)
         st.markdown(
             f"""
             <div style="padding:48px 0;text-align:center;">
-              <div style="font-size:48px;margin-bottom:16px;">◆</div>
-              <h1 class="symphony-h1" style="font-size:42px;">Approval received.</h1>
+              <div style="margin-bottom:18px;display:flex;justify-content:center;">{check_glyph}</div>
+              <h1 class="symphony-h1" style="font-size:44px;">Approval received.</h1>
               <p style="color:{COLORS['text_dim']};font-size:17px;max-width:520px;margin:16px auto;">
                 Concerto is now executing the campaign. Return to your original Symphony tab to watch the composition unfold in real time.
               </p>
-              <div style="margin-top:32px;color:{COLORS['text_mute']};font-size:13px;letter-spacing:1.4px;text-transform:uppercase;">
+              <div style="margin-top:32px;color:{COLORS['text_mute']};font-size:11px;letter-spacing:0.6px;text-transform:uppercase;font-weight:600;">
                 Run · {run['source_stem']}
               </div>
             </div>
@@ -228,8 +232,10 @@ def handle_magic_link():
 
 
 def render_eyebrow(label: str = "PROJECT SYMPHONY · A LIVE PREVIEW"):
+    glyph = icon("sparkles", size=12, color=COLORS["indigo"], stroke=2.0)
     st.markdown(
-        f'<div style="margin-bottom:8px;"><span class="symphony-eyebrow">◈ {label}</span></div>',
+        f'<div style="margin-bottom:8px;display:inline-flex;align-items:center;gap:8px;">'
+        f'{glyph}<span class="symphony-eyebrow">{label}</span></div>',
         unsafe_allow_html=True,
     )
 
@@ -253,10 +259,20 @@ def render_phase_rail():
         else:
             cls = ""
         kind_cls = "cue" if kind == "cue" else "movement"
+
+        # Cue stops get a small bell-ring SVG inline instead of the diamond
+        # glyph; the SVG inherits color via stroke=currentColor so it tracks
+        # the cue's italic violet / fuchsia / violet states automatically.
+        if kind == "cue":
+            cue_svg = icon("bell-ring", size=12, stroke=1.8)
+            label_html = f'{cue_svg}<span style="margin-left:4px;">{label}</span>'
+        else:
+            label_html = f"<span>{label}</span>"
+
         parts.append(
-            f'<div class="symphony-phase-step {kind_cls} {cls}">'
+            f'<div class="symphony-phase-step {kind_cls} {cls}" style="display:inline-flex;align-items:center;gap:8px;">'
             f'<span class="symphony-phase-dot"></span>'
-            f"<span>{label}</span>"
+            f"{label_html}"
             f"</div>"
         )
         if i < len(MOVEMENTS) - 1:
@@ -304,7 +320,7 @@ def render_debate_recap():
     if not history and not brief:
         return
 
-    with st.expander("◇  View the strategic debate  ·  Movement I recap", expanded=False):
+    with st.expander("View the strategic debate · Movement I recap", expanded=False):
         for i, entry in enumerate(history):
             agent = agentlib.AGENTS[entry["agent_id"]]
             round_num = (i // 2) + 1
@@ -331,8 +347,10 @@ def render_debate_recap():
             )
 
         if brief:
+            wand_svg = icon("wand-sparkles", size=11, color=COLORS["violet"], stroke=2.0)
             st.markdown(
-                f'<div style="font-size:11px;letter-spacing:1.4px;color:{COLORS["text_mute"]};text-transform:uppercase;font-weight:600;margin:24px 0 10px 0;">◆ Sterling\'s Brief</div>',
+                f'<div style="font-size:11px;letter-spacing:0.6px;color:{COLORS["violet"]};text-transform:uppercase;font-weight:600;margin:24px 0 10px 0;display:inline-flex;align-items:center;gap:6px;">'
+                f'{wand_svg}Sterling\'s Brief</div>',
                 unsafe_allow_html=True,
             )
             st.markdown(
@@ -347,6 +365,8 @@ def linkedin_copy_open_button(text: str, button_id: str, label: str = "Copy + Op
     Uses the browser's clipboard API + window.open in a single user gesture.
     """
     payload = json.dumps(text)
+    li_svg = icon("linkedin", size=16, color="#FFFFFF", stroke=2.0)
+    arrow_svg = icon("external-link", size=14, color="#FFFFFF", stroke=2.0)
     html = f"""
     <div style="margin:8px 0;">
       <button id="{button_id}" type="button"
@@ -355,15 +375,21 @@ def linkedin_copy_open_button(text: str, button_id: str, label: str = "Copy + Op
         background: linear-gradient(135deg, #818CF8 0%, #A78BFA 50%, #E879F9 100%);
         color: white;
         border: none;
-        padding: 12px 22px;
+        padding: 11px 20px;
         border-radius: 12px;
-        font-weight: 700;
+        font-weight: 600;
         font-size: 14px;
         cursor: pointer;
-        letter-spacing: 0.3px;
+        letter-spacing: 0.1px;
         box-shadow: 0 4px 16px rgba(129,140,248,0.30);
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      "><span aria-hidden="true">in</span>&nbsp;&nbsp;{label}&nbsp;&nbsp;<span aria-hidden="true">↗</span></button>
+        font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        display: inline-flex; align-items: center; gap: 10px;
+        transition: filter 150ms ease, box-shadow 150ms ease;
+      "
+      onmouseover="this.style.filter='brightness(1.08)';this.style.boxShadow='0 8px 28px rgba(129,140,248,0.45)';"
+      onmouseout="this.style.filter='';this.style.boxShadow='0 4px 16px rgba(129,140,248,0.30)';">
+        {li_svg}<span>{label}</span>{arrow_svg}
+      </button>
       <span id="{button_id}_status" role="status" aria-live="polite" style="margin-left:14px;color:#34D399;font-size:13px;font-weight:600;display:none;">✓ Copied</span>
     </div>
     <script>
@@ -395,21 +421,28 @@ def linkedin_copy_open_button(text: str, button_id: str, label: str = "Copy + Op
 def universal_copy_button(text: str, button_id: str, label: str = "Copy text"):
     """Inject a one-click clipboard copy button."""
     payload = json.dumps(text)
+    copy_svg = icon("copy", size=14, color="#F1F5F9", stroke=1.8)
     html = f"""
     <div style="margin:8px 0;">
       <button id="{button_id}" type="button"
               aria-label="{label}: copy asset content to clipboard"
               style="
-        background: #1E2748;
-        color: #F1F5F9;
-        border: 1px solid #283354;
-        padding: 10px 18px;
+        background: {COLORS['surface_2']};
+        color: {COLORS['text']};
+        border: 1px solid {COLORS['border']};
+        padding: 9px 16px;
         border-radius: 12px;
         font-weight: 600;
         font-size: 13px;
         cursor: pointer;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      "><span aria-hidden="true">⧉</span>&nbsp;&nbsp;{label}</button>
+        font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        display: inline-flex; align-items: center; gap: 8px;
+        transition: border-color 150ms ease, background-color 150ms ease;
+      "
+      onmouseover="this.style.borderColor='{COLORS['indigo']}';this.style.background='{COLORS['surface_3']}';"
+      onmouseout="this.style.borderColor='{COLORS['border']}';this.style.background='{COLORS['surface_2']}';">
+        {copy_svg}<span>{label}</span>
+      </button>
       <span id="{button_id}_status" role="status" aria-live="polite" style="margin-left:14px;color:#34D399;font-size:13px;font-weight:600;display:none;">✓ Copied to clipboard</span>
     </div>
     <script>
@@ -464,25 +497,27 @@ def render_preview_page():
 
     # Three Movements. The Cue (approval) sits between Movements I and II as
     # a structural pause -- mentioned verbally, not given its own card.
+    # Descriptions intentionally trimmed to roughly equal length so the three
+    # cards read parallel. The fuller narrative lives in the demo voiceover.
     cards = [
         {
             "movement": "Movement I",
             "title": "Intelligence",
-            "icon": "◇",
+            "icon_name": "sparkles",
             "duration": "~60 seconds",
-            "desc": "Two AI strategists — Maya for brand, Marcus for pipeline — debate the best campaign play for the source document. Sterling, the Director, synthesizes the argument into a brief and routes it to the conductor's inbox for the cue.",
+            "desc": "Two AI strategists — Maya for brand, Marcus for pipeline — debate the campaign. Sterling, the Director, writes the brief and routes it for the cue.",
         },
         {
             "movement": "Movement II",
             "title": "Composition",
-            "icon": "◈",
+            "icon_name": "wand-sparkles",
             "duration": "~90 seconds",
-            "desc": "Once the conductor cues, Concerto composes ten marketing assets in the PureFacts voice — LinkedIn posts, nurture emails, BDR sequence, blog post, sales one-pager, enablement, and more. The orchestra plays the score.",
+            "desc": "Once the conductor cues, Concerto composes ten marketing assets in the PureFacts voice — posts, emails, BDR sequence, blog, one-pager, enablement.",
         },
         {
             "movement": "Movement III",
             "title": "Distribution",
-            "icon": "◆",
+            "icon_name": "send",
             "duration": "~30 seconds",
             "desc": "Each asset ships to its destination — LinkedIn, HubSpot CMS, the team's inbox — with a single click per channel. The performance reaches the audience.",
         },
@@ -491,22 +526,27 @@ def render_preview_page():
     # Composition cards collapsed by default. The conductor introduces the
     # three movements verbally first, then expands on cue. Stops the audience
     # from reading ahead while the speaker is still framing.
-    with st.expander("◇  The Composition  ·  three movements", expanded=False):
+    with st.expander("The Composition · three movements", expanded=False):
         cols = st.columns(3, gap="medium")
         for col, card in zip(cols, cards):
             with col:
+                glyph = icon(card["icon_name"], size=22, color=COLORS["indigo"], stroke=1.7)
+                # min-height: 340px (was fixed 300px which clipped longer descs
+                # and hid the duration footer). Auto-grows for any card that
+                # still needs more space. Three cards in a row don't auto-equalize
+                # in Streamlit columns -- min-height anchors the visual rhythm.
                 st.markdown(
                     f"""
-                    <div class="symphony-card" style="height:300px;display:flex;flex-direction:column;justify-content:space-between;">
+                    <div class="symphony-card" style="min-height:340px;display:flex;flex-direction:column;justify-content:space-between;">
                       <div>
-                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-                          <span style="font-size:18px;color:{COLORS['indigo']};">{card['icon']}</span>
+                        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+                          <span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;background:rgba(129,140,248,0.12);border:1px solid rgba(129,140,248,0.24);">{glyph}</span>
                           <span class="symphony-eyebrow" style="opacity:0.85;">{card['movement']}</span>
                         </div>
-                        <div style="font-size:24px;font-weight:700;color:{COLORS['text']};margin-bottom:10px;">{card['title']}</div>
+                        <div style="font-size:24px;font-weight:700;color:{COLORS['text']};margin-bottom:10px;letter-spacing:-0.4px;">{card['title']}</div>
                         <div style="font-size:14px;color:{COLORS['text_dim']};line-height:1.55;">{card['desc']}</div>
                       </div>
-                      <div style="font-size:11px;letter-spacing:1.4px;color:{COLORS['text_mute']};text-transform:uppercase;font-weight:600;margin-top:14px;">{card['duration']}</div>
+                      <div style="font-size:11px;letter-spacing:0.6px;color:{COLORS['text_mute']};text-transform:uppercase;font-weight:600;margin-top:18px;">{card['duration']}</div>
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -518,7 +558,7 @@ def render_preview_page():
     # confidently from the back of a Townhall room on a projector.
     cols = st.columns([2, 3])
     with cols[0]:
-        if st.button("◈  Take the Podium  →", type="primary", use_container_width=True):
+        if st.button("Take the Podium  →", type="primary", use_container_width=True):
             st.session_state.phase = "idle"
             st.rerun()
 
@@ -557,7 +597,7 @@ def render_idle_page():
     cols = st.columns([2, 3])
     with cols[0]:
         begin = st.button(
-            "◈  Compose Magic",
+            "Compose Magic",
             type="primary",
             use_container_width=True,
             disabled=uploaded is None,
@@ -593,8 +633,10 @@ def run_intelligence_phase(client: genai.Client, source_md: str) -> tuple[list[d
 
     history: list[dict] = []
 
+    section_glyph = icon("sparkles", size=12, color=COLORS["indigo"], stroke=2.0)
     st.markdown(
-        '<div class="symphony-section-label">◇ Movement I · Intelligence</div>',
+        f'<div class="symphony-section-label" style="display:inline-flex;align-items:center;gap:8px;">'
+        f'{section_glyph}Movement I · Intelligence</div>',
         unsafe_allow_html=True,
     )
     st.markdown('<h2 class="symphony-h2">Maya vs. Marcus</h2>', unsafe_allow_html=True)
@@ -652,8 +694,11 @@ def run_intelligence_phase(client: genai.Client, source_md: str) -> tuple[list[d
                     )
 
     st.markdown("<br/>", unsafe_allow_html=True)
+    synth_glyph = icon("wand-sparkles", size=12, color=COLORS["violet"], stroke=2.0)
     st.markdown(
-        '<div class="symphony-section-label">◆ Synthesis</div>',
+        f'<div class="symphony-section-label" style="display:inline-flex;align-items:center;gap:8px;'
+        f'color:{COLORS["violet"]};background:rgba(167,139,250,0.10);border-color:rgba(167,139,250,0.30);">'
+        f'{synth_glyph}Synthesis</div>',
         unsafe_allow_html=True,
     )
     st.markdown('<h2 class="symphony-h2">Sterling, the Director</h2>', unsafe_allow_html=True)
@@ -815,13 +860,18 @@ def render_awaiting_approval_page():
             st.rerun()
 
     if st.session_state.approval_email_sent:
+        mail_glyph = icon("mail", size=22, color=COLORS["indigo"], stroke=1.7)
         st.markdown(
             f"""
             <div class="symphony-card-glow" style="margin:18px 0;">
-              <div style="display:flex;align-items:center;gap:14px;">
-                <div style="font-size:32px;" class="symphony-pulse">📨</div>
+              <div style="display:flex;align-items:center;gap:16px;">
+                <div class="symphony-pulse"
+                     style="display:inline-flex;align-items:center;justify-content:center;
+                            width:44px;height:44px;border-radius:12px;
+                            background:rgba(129,140,248,0.14);
+                            border:1px solid rgba(129,140,248,0.30);">{mail_glyph}</div>
                 <div style="flex:1;">
-                  <div style="font-weight:700;font-size:16px;color:{COLORS['text']};">Brief delivered to your inbox</div>
+                  <div style="font-weight:700;font-size:16px;color:{COLORS['text']};letter-spacing:-0.1px;">Brief delivered to your inbox</div>
                   <div style="color:{COLORS['text_dim']};font-size:14px;margin-top:2px;">
                     Open <strong>{st.secrets.get('APPROVAL_EMAIL', '')}</strong> and click <strong>Approve and Execute</strong>. This page will advance automatically.
                   </div>
@@ -923,10 +973,23 @@ def _asset_card_html(
         pill_html = '<span class="symphony-pill pending">Pending</span>'
         meta = ""
 
+    # Render the asset glyph as an inline Lucide SVG; tint the surrounding
+    # icon chip by category so LinkedIn / outreach / blog read distinct.
+    glyph_name = asset.get("icon_name") or "sparkles"
+    glyph_svg = icon(glyph_name, size=16, stroke=1.8)
+    icon_class = ""
+    cat = asset.get("category", "")
+    if cat == "linkedin":
+        icon_class = " linkedin"
+    elif cat == "outreach":
+        icon_class = " outreach"
+    elif cat == "blog":
+        icon_class = " blog"
+
     return f"""
     <div class="{card_cls}">
       <div class="symphony-asset-card-header">
-        <div class="symphony-asset-icon">{asset['icon']}</div>
+        <div class="symphony-asset-icon{icon_class}">{glyph_svg}</div>
         <div class="symphony-asset-label">{asset['label']}</div>
         {pill_html}
       </div>
@@ -1118,7 +1181,7 @@ def render_executing_phase():
     if n_failed == 0:
         # Clean run -- mark composition complete, offer the primary continue button.
         st.session_state.composition_done = True
-        if st.button("◈  Continue to Distribution  →", type="primary", use_container_width=False):
+        if st.button("Continue to Distribution  →", type="primary", use_container_width=False):
             st.session_state.phase = "distribution"
             st.rerun()
     else:
@@ -1137,7 +1200,7 @@ def render_executing_phase():
             if st.button("↻  Retry Failed Assets", type="primary", use_container_width=True):
                 st.rerun()
         with cols[1]:
-            if st.button(f"◈  Continue with {n_done} →", use_container_width=True):
+            if st.button(f"Continue with {n_done} →", use_container_width=True):
                 st.session_state.composition_done = True
                 st.session_state.phase = "distribution"
                 st.rerun()
@@ -1199,7 +1262,7 @@ def render_distribution_card(asset: dict, content: str):
         linkedin_copy_open_button(clean_body, button_id=f"li_btn_{asset_id}")
 
     elif distribution_kind == "hubspot":
-        if st.button("◈  Push to HubSpot CMS", key=f"action_hs_{asset_id}",
+        if st.button("Push to HubSpot CMS", key=f"action_hs_{asset_id}",
                      type="primary"):
             token = st.secrets.get("HUBSPOT_ACCESS_TOKEN", "")
             with st.spinner("Pushing draft to HubSpot..."):
@@ -1237,12 +1300,14 @@ def render_distribution_card(asset: dict, content: str):
             #    "View in HubSpot" button (the always-works fallback for popup
             #    blockers + the audience's primary visual cue that something
             #    real just happened).
+            check_svg = icon("check-circle", size=20, color=COLORS["success"], stroke=2.0)
+            ext_svg = icon("external-link", size=14, color="#FFFFFF", stroke=2.0)
             st.markdown(
                 f"""
                 <div class="symphony-success-banner">
-                  <div class="dot"></div>
+                  <div style="flex-shrink:0;display:flex;align-items:center;justify-content:center;">{check_svg}</div>
                   <div style="flex:1;">
-                    <div style="font-weight:700;">Draft live in HubSpot CMS</div>
+                    <div style="font-weight:700;letter-spacing:-0.1px;">Draft live in HubSpot CMS</div>
                     <div style="color:{COLORS['text_dim']};font-weight:400;font-size:13px;margin-top:2px;">
                       <strong style="color:{COLORS['text']};font-weight:600;">{escape_dollars(post_title)}</strong>
                       &nbsp;·&nbsp; Post ID <code>{post_id}</code>
@@ -1254,15 +1319,16 @@ def render_distribution_card(asset: dict, content: str):
             )
             st.markdown(
                 f'<a href="{edit_url}" target="_blank" rel="noopener" '
-                f'style="display:inline-block;margin-top:8px;padding:12px 22px;'
+                f'style="display:inline-flex;align-items:center;gap:8px;'
+                f'margin-top:10px;padding:11px 20px;'
                 f'background:{GRADIENTS["brand"]};border:none;color:white;text-decoration:none;'
-                f'border-radius:12px;font-weight:700;font-size:14px;letter-spacing:0.3px;'
-                f'box-shadow:0 4px 16px rgba(129,140,248,0.30);">View in HubSpot ↗</a>',
+                f'border-radius:12px;font-weight:600;font-size:14px;letter-spacing:0.1px;'
+                f'box-shadow:0 4px 16px rgba(129,140,248,0.30);">View in HubSpot{ext_svg}</a>',
                 unsafe_allow_html=True,
             )
 
     elif distribution_kind == "email_approval":
-        if st.button("✉  Send for Review", key=f"action_em_{asset_id}",
+        if st.button("Send for Review", key=f"action_em_{asset_id}",
                      type="primary"):
             with st.spinner("Sending..."):
                 result = distribution.send_asset_for_approval(
@@ -1275,10 +1341,11 @@ def render_distribution_card(asset: dict, content: str):
             st.rerun()
 
         if ship_state and ship_state.get("ok"):
+            send_check = icon("check-circle", size=18, color=COLORS["success"], stroke=2.0)
             st.markdown(
                 f"""
                 <div class="symphony-success-banner">
-                  <div class="dot"></div>
+                  <div style="flex-shrink:0;display:flex;align-items:center;justify-content:center;">{send_check}</div>
                   <div>Sent to <strong>{ship_state.get('destination', '')}</strong>. Check your inbox.</div>
                 </div>
                 """,
