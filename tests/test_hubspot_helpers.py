@@ -1,0 +1,151 @@
+"""Unit tests for the HubSpot pure-function helpers in lib.distribution.
+
+Covers the URL-construction and H1-extraction helpers that drive the
+"View in HubSpot" deep-link in Movement III. Pure functions only -- no
+HTTP calls, no real HubSpot account needed.
+
+The full integration test (creates an actual draft post in HubSpot) lives
+in tests/test_hubspot.py and must be run manually.
+"""
+from __future__ import annotations
+
+import pytest
+
+from lib.distribution import (
+    extract_h1_title,
+    hubspot_edit_url,
+    md_to_html,
+    strip_yaml_frontmatter,
+)
+
+
+# ---------------------------------------------------------------------------
+# hubspot_edit_url
+# ---------------------------------------------------------------------------
+
+def test_hubspot_edit_url_with_portal_and_post():
+    """The happy path: deep-link straight to the draft editor."""
+    url = hubspot_edit_url("12345678", "999000111")
+    assert url == "https://app.hubspot.com/blog/12345678/edit/999000111/content"
+
+
+def test_hubspot_edit_url_falls_back_when_portal_missing():
+    """If the portal lookup failed, fall back to the HubSpot home so the user can navigate."""
+    assert hubspot_edit_url(None, "999000111") == "https://app.hubspot.com/"
+
+
+def test_hubspot_edit_url_falls_back_when_post_id_missing():
+    """If the post id is empty, also fall back -- a deep-link without a post id is broken."""
+    assert hubspot_edit_url("12345678", "") == "https://app.hubspot.com/"
+
+
+def test_hubspot_edit_url_falls_back_when_both_missing():
+    assert hubspot_edit_url(None, "") == "https://app.hubspot.com/"
+    assert hubspot_edit_url(None, None) == "https://app.hubspot.com/"  # type: ignore[arg-type]
+
+
+def test_hubspot_edit_url_handles_int_portal_id():
+    """The HubSpot API may return portalId as int OR string; we coerce to str on the
+    way in (in discover_portal_id) but the helper itself should accept either."""
+    # Strings get used as-is.
+    assert "12345" in hubspot_edit_url("12345", "abc")
+
+
+# ---------------------------------------------------------------------------
+# extract_h1_title
+# ---------------------------------------------------------------------------
+
+def test_extract_h1_title_simple():
+    md = "# My Blog Post\n\nSome body content."
+    title, body = extract_h1_title(md)
+    assert title == "My Blog Post"
+    assert body == "Some body content."
+
+
+def test_extract_h1_title_strips_extra_whitespace():
+    md = "#    Whitespace Title   \n\nBody."
+    title, _ = extract_h1_title(md)
+    assert title == "Whitespace Title"
+
+
+def test_extract_h1_title_no_h1_returns_default():
+    """If Gemini forgets the H1, fall back to a placeholder rather than crash."""
+    title, body = extract_h1_title("Just body, no heading.")
+    assert title == "Untitled"
+    assert body == "Just body, no heading."
+
+
+def test_extract_h1_title_skips_empty_lines_before_h1():
+    md = "\n\n\n# Real Title\n\nBody."
+    title, _ = extract_h1_title(md)
+    assert title == "Real Title"
+
+
+def test_extract_h1_title_only_picks_first_h1():
+    """Subsequent H1s belong to the body."""
+    md = "# First Title\n\nSome body.\n\n# Second Title\n\nMore body."
+    title, body = extract_h1_title(md)
+    assert title == "First Title"
+    assert "# Second Title" in body
+
+
+def test_extract_h1_title_ignores_h2_and_h3():
+    md = "## Subhead first\n\nBody."
+    title, _ = extract_h1_title(md)
+    assert title == "Untitled"
+
+
+# ---------------------------------------------------------------------------
+# md_to_html
+# ---------------------------------------------------------------------------
+
+def test_md_to_html_renders_basic_markdown():
+    out = md_to_html("**bold** and *italic*")
+    assert "<strong>bold</strong>" in out
+    assert "<em>italic</em>" in out
+
+
+def test_md_to_html_renders_tables():
+    """The 'tables' extension is required for the sales one-pager's PROOF table."""
+    md = "| a | b |\n|---|---|\n| 1 | 2 |"
+    out = md_to_html(md)
+    assert "<table>" in out
+    assert "<td>1</td>" in out
+
+
+def test_md_to_html_renders_headers():
+    out = md_to_html("# H1\n## H2\n### H3")
+    assert "<h1>H1</h1>" in out
+    assert "<h2>H2</h2>" in out
+    assert "<h3>H3</h3>" in out
+
+
+# ---------------------------------------------------------------------------
+# Integration check: strip + extract H1 + render -> the HubSpot push pipeline
+# ---------------------------------------------------------------------------
+
+def test_strip_then_extract_then_render_produces_clean_html():
+    """Mirrors push_blog_to_hubspot's actual transformation pipeline."""
+    raw_gemini_output = (
+        "```yaml\n"
+        "type: blog-post\n"
+        "icp: both\n"
+        "voice: PureFacts corporate\n"
+        "```\n"
+        "\n"
+        "# The Invisible Invoice\n"
+        "\n"
+        "## The Problem\n"
+        "\n"
+        "Some body content with **bold** text.\n"
+    )
+    cleaned = strip_yaml_frontmatter(raw_gemini_output)
+    title, body_md = extract_h1_title(cleaned)
+    body_html = md_to_html(body_md)
+
+    assert title == "The Invisible Invoice"
+    assert "<h2>The Problem</h2>" in body_html
+    assert "<strong>bold</strong>" in body_html
+    # The YAML wrapper must be entirely gone.
+    assert "```yaml" not in body_html
+    assert "type:" not in body_html

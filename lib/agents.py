@@ -1,13 +1,19 @@
 """Agent personas and Gemini orchestration for the Intelligence layer.
 
 Three agents:
-- Maya  (Agent A) -- Top-of-Funnel Brand Strategist
-- Marcus (Agent B) -- Bottom-of-Funnel Pipeline Strategist
-- Sterling (Synthesizer) -- Campaign Director who reads the debate and writes the brief
+- Maya     -- Brand Strategist (long game, authority, category leadership)
+- Marcus   -- Pipeline Strategist (this quarter, meetings, pipeline velocity)
+- Sterling -- Campaign Director who reads the debate and writes the brief
+
+Displayed titles are intentionally plain ("Brand Strategist", "Pipeline
+Strategist") so a Townhall audience without GTM jargon can follow. The
+strategic stance is conveyed through each agent's tagline, the debate prompt
+in /prompts/03-debate.md, and Sterling's synth prompt in /prompts/04-synthesize.md.
 """
 from __future__ import annotations
 
 from collections.abc import Iterable
+from functools import lru_cache
 from pathlib import Path
 
 from google import genai
@@ -17,6 +23,16 @@ ROOT = Path(__file__).resolve().parent.parent
 CONTEXT_DIR = ROOT / "context"
 PROMPTS_DIR = ROOT / "prompts"
 
+# Model selection rationale:
+#   - DEBATE_MODEL = gemini-2.5-flash: latest stable general-purpose Flash text
+#     model (verified Apr 2026). Used for Maya + Marcus debate turns and the
+#     composer. Fast streaming, lower cost, perfect for the per-asset workload.
+#     The 3.1 Flash family is currently specialized only (Lite/TTS/Image/Live);
+#     no general-purpose stable 3.1 Flash text model exists yet.
+#   - SYNTH_MODEL = gemini-2.5-pro: latest stable Pro with adaptive thinking.
+#     Used for Sterling synthesis so the Director "thinks longer" before writing
+#     the brief. Upgrade path: switch to "gemini-3.1-pro-preview" once it
+#     graduates from preview to stable for additional reasoning depth.
 DEBATE_MODEL = "gemini-2.5-flash"
 SYNTH_MODEL = "gemini-2.5-pro"
 
@@ -29,7 +45,7 @@ AGENTS = {
     "maya": {
         "id": "maya",
         "name": "Maya",
-        "title": "Top-of-Funnel Brand Strategist",
+        "title": "Brand Strategist",
         "tagline": "Long game. Authority. Category leadership.",
         "avatar_initial": "M",
         "avatar_class": "a",
@@ -39,7 +55,7 @@ AGENTS = {
     "marcus": {
         "id": "marcus",
         "name": "Marcus",
-        "title": "Bottom-of-Funnel Pipeline Strategist",
+        "title": "Pipeline Strategist",
         "tagline": "This quarter. Meetings. Pipeline velocity.",
         "avatar_initial": "M",
         "avatar_class": "b",
@@ -107,7 +123,7 @@ def _system_for_agent(agent_id: str, debate_prompt: str, context: str) -> str:
         f"You are {agent['name']}, the {agent['title']} on the PureFacts marketing team. "
         f"Your stance is **{agent['stance']}**. Argue your perspective with conviction, "
         f"backed by PureFacts positioning, ICP language, and competitive context below.\n"
-        f"You are debating {('Marcus (BoFu Pipeline Strategist)' if agent_id == 'maya' else 'Maya (ToFu Brand Strategist)')}. "
+        f"You are debating {('Marcus (Pipeline Strategist)' if agent_id == 'maya' else 'Maya (Brand Strategist)')}. "
         f"Address them by name. Disagree directly when you see it differently. "
         f"Stay in character.\n\n"
         f"---\n"
@@ -239,8 +255,15 @@ def stream_synthesizer(
             yield chunk.text
 
 
+@lru_cache(maxsize=4)
 def validate_api_key(api_key: str) -> tuple[bool, str]:
-    """Quick validation via a lightweight token-counting call."""
+    """Quick validation via a lightweight token-counting call.
+
+    Cached per api_key so we don't fire a network call to Gemini on every
+    Streamlit rerun of the intelligence phase. Cache bound is small (4) since
+    we expect at most one or two distinct keys per process lifetime. If the
+    key is rotated, restart the app or call validate_api_key.cache_clear().
+    """
     try:
         client = genai.Client(api_key=api_key)
         client.models.count_tokens(model=DEBATE_MODEL, contents="connection test")

@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
-"""Test the LinkedIn 'Copy + Open Composer' flow.
+"""Manual integration script for the LinkedIn Copy + Open Composer flow.
 
-Reads a LinkedIn post from /output/, strips YAML metadata, copies the
-clean text to the system clipboard, and opens LinkedIn's compose page in
-the default browser.
+WARNING -- This is NOT a unit test. It is a manual smoke-runner that writes
+to your system clipboard and opens LinkedIn's compose page in your default
+browser. macOS only (uses pbcopy). It is intentionally named test_*.py for
+historical reasons but pytest will skip it (no test_* function defined).
+DO NOT run during the demo -- it overwrites the clipboard and pops a tab.
+
+Run only when manually verifying clipboard + browser plumbing:
+    python3 tests/test_linkedin.py
+
+For fast pure-function unit tests, see tests/test_textutils.py.
 """
 import re
 import subprocess

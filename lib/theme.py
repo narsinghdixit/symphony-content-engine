@@ -221,6 +221,12 @@ footer {{ visibility: hidden; }}
     color: {COLORS['text_dim']};
 }}
 
+.symphony-pill.failed {{
+    background: rgba(251, 113, 133, 0.16);
+    border: 1px solid rgba(251, 113, 133, 0.40);
+    color: {COLORS['danger']};
+}}
+
 /* ---------- Buttons (custom on top of Streamlit) ---------- */
 .stButton > button {{
     border-radius: 12px !important;
@@ -380,6 +386,37 @@ footer {{ visibility: hidden; }}
     max-width: 60px;
 }}
 
+/* Cue rail step: a structural pause between movements (the conductor's cue). */
+/* Same dot size so it doesn't read as "lesser," but italic label + violet tint */
+/* makes it visually distinct from the numbered Movement steps. */
+.symphony-phase-step.cue {{
+    color: {COLORS['violet']};
+    font-style: italic;
+    letter-spacing: 0.6px;
+}}
+
+.symphony-phase-step.cue.active {{
+    color: {COLORS['fuchsia']};
+}}
+
+.symphony-phase-step.cue .symphony-phase-dot {{
+    background: transparent;
+    border-color: {COLORS['violet']};
+    border-style: dashed;
+}}
+
+.symphony-phase-step.cue.active .symphony-phase-dot {{
+    background: {COLORS['violet']};
+    border-style: solid;
+    box-shadow: 0 0 0 4px rgba(167, 139, 250, 0.20);
+}}
+
+.symphony-phase-step.cue.complete .symphony-phase-dot {{
+    background: {COLORS['violet']};
+    border-color: {COLORS['violet']};
+    border-style: solid;
+}}
+
 /* ---------- Expander (composition reveal) ---------- */
 [data-testid="stExpander"] details {{
     background: {COLORS['surface_1']} !important;
@@ -438,6 +475,11 @@ footer {{ visibility: hidden; }}
 .symphony-asset-card.shipped {{
     border-color: rgba(52, 211, 153, 0.50);
     background-image: linear-gradient(180deg, rgba(52, 211, 153, 0.08) 0%, rgba(52, 211, 153, 0) 60%);
+}}
+
+.symphony-asset-card.failed {{
+    border-color: rgba(251, 113, 133, 0.50);
+    background-image: linear-gradient(180deg, rgba(251, 113, 133, 0.08) 0%, rgba(251, 113, 133, 0) 60%);
 }}
 
 .symphony-asset-card-header {{
@@ -595,6 +637,37 @@ footer {{ visibility: hidden; }}
 @keyframes shimmer {{
     0% {{ background-position: 200% 0; }}
     100% {{ background-position: -200% 0; }}
+}}
+
+/* ---------- Mobile responsiveness ---------- */
+/* Townhall audience may peek on phones. The phase rail at 4 stops + 3
+   connectors overflows horizontally on iPhone-width viewports without these
+   tweaks. The H1 at 56px also dominates a portrait phone screen. */
+@media (max-width: 600px) {{
+    .symphony-h1 {{
+        font-size: 36px !important;
+        letter-spacing: -1px !important;
+    }}
+    .block-container {{
+        padding-top: 1.5rem !important;
+        padding-bottom: 4rem !important;
+    }}
+    /* Phase rail wraps to a vertical stack on phones; the connector lines
+       collapse so the steps remain readable end-to-end. */
+    .symphony-phase-rail {{
+        flex-wrap: wrap;
+        gap: 8px 12px;
+    }}
+    .symphony-phase-step {{
+        font-size: 11px;
+        letter-spacing: 0.3px;
+    }}
+    .symphony-phase-line {{
+        max-width: 18px;
+    }}
+    .symphony-tagline {{
+        font-size: 15px;
+    }}
 }}
 </style>
 """

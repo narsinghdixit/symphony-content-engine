@@ -1,4 +1,4 @@
-"""Movement IV: Distribution.
+"""Movement III: Distribution.
 
 Action handlers for shipping each asset to its destination:
 - LinkedIn: clipboard copy + open compose URL (no API)
@@ -13,12 +13,14 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 
 import markdown
 import requests
 
 from lib import email_sender
+from lib.textutils import strip_yaml_frontmatter as _strip_yaml_canonical
 
 LINKEDIN_COMPOSE_URL = "https://www.linkedin.com/feed/?shareActive=true"
 HUBSPOT_API_BASE = "https://api.hubapi.com"
@@ -30,32 +32,13 @@ HUBSPOT_API_BASE = "https://api.hubapi.com"
 
 
 def strip_yaml_frontmatter(md: str) -> str:
-    """Strip YAML frontmatter AND any outer markdown code fence from an asset.
+    """Re-export of lib.textutils.strip_yaml_frontmatter for back-compat.
 
-    Handles every LLM output variation we've seen:
-      1. ---\nyaml\n---\n\nbody              (clean frontmatter)
-      2. ```yaml\n...\n```\n\nbody           (yaml wrapped in code fence)
-      3. ```markdown\n---\n...\n---\nbody\n``` (whole asset wrapped in fence)
-      4. ```md\n...\n```                     (md alias)
+    Kept as a passthrough so existing call sites (app.py, composer, etc.) and
+    any external scripts can keep importing from lib.distribution. The single
+    canonical implementation lives in lib.textutils.
     """
-    s = md.strip()
-
-    # Pass 1: if the WHOLE thing is wrapped in a code fence, strip it
-    fence_match = re.match(r"^```\w*\s*\n(.*)\n```\s*$", s, flags=re.DOTALL)
-    if fence_match:
-        s = fence_match.group(1).strip()
-
-    # Pass 2: strip --- ... --- YAML frontmatter
-    if s.startswith("---"):
-        s = re.sub(r"^---.*?---\s*", "", s, count=1, flags=re.DOTALL).strip()
-        return s
-
-    # Pass 3: strip ```yaml ... ``` style YAML block (single or multi-line)
-    if re.match(r"^```ya?ml", s, flags=re.IGNORECASE):
-        s = re.sub(r"^```ya?ml.*?```\s*", "", s, count=1, flags=re.DOTALL | re.IGNORECASE).strip()
-        return s
-
-    return s
+    return _strip_yaml_canonical(md)
 
 
 def extract_h1_title(md: str) -> tuple[str, str]:
@@ -151,6 +134,35 @@ def discover_blog_id(token: str) -> str | None:
     return None
 
 
+@lru_cache(maxsize=4)
+def discover_portal_id(token: str) -> str | None:
+    """Look up the HubSpot portal (hub) ID for the account behind this token.
+
+    Cached per-token because the portal never changes for a given account.
+    Used to construct the deep-link to a draft blog post inside HubSpot's UI:
+        https://app.hubspot.com/blog/{portal_id}/edit/{post_id}/content
+
+    Returns None if the account-info endpoint fails (token lacks scope, network
+    error, etc.) -- callers should fall back to https://app.hubspot.com/.
+    """
+    url = f"{HUBSPOT_API_BASE}/account-info/v3/details"
+    try:
+        r = requests.get(url, headers=_hubspot_headers(token), timeout=30)
+        if r.status_code != 200:
+            return None
+        portal = r.json().get("portalId")
+        return str(portal) if portal else None
+    except Exception:
+        return None
+
+
+def hubspot_edit_url(portal_id: str | None, post_id: str) -> str:
+    """Build the deep-link URL to edit a blog post inside HubSpot's UI."""
+    if portal_id and post_id:
+        return f"https://app.hubspot.com/blog/{portal_id}/edit/{post_id}/content"
+    return "https://app.hubspot.com/"
+
+
 def push_blog_to_hubspot(
     *,
     token: str,
@@ -167,7 +179,15 @@ def push_blog_to_hubspot(
     if not blog_id:
         blog_id = discover_blog_id(token)
     if not blog_id:
-        return {"ok": False, "error": "Could not find a HubSpot blog to publish to."}
+        return {
+            "ok": False,
+            "error": (
+                "No HubSpot blog found. Concerto pushes drafts into an existing "
+                "blog (contentGroupId), but the connected HubSpot account has "
+                "no blog posts yet. Fix: in HubSpot, create a blog (Marketing "
+                "→ Website → Blog → New blog post → save as draft), then retry."
+            ),
+        }
 
     url = f"{HUBSPOT_API_BASE}/cms/v3/blogs/posts"
     payload = {
@@ -183,12 +203,17 @@ def push_blog_to_hubspot(
         r = requests.post(url, headers=_hubspot_headers(token), json=payload, timeout=30)
         if r.status_code in (200, 201):
             data = r.json()
+            post_id = data.get("id", "")
+            # Try the response first, fall back to a separate account-info call.
+            portal_id = data.get("portalId") or discover_portal_id(token)
             return {
                 "ok": True,
-                "post_id": data.get("id", ""),
+                "post_id": post_id,
                 "title": final_title,
                 "preview_url": data.get("url", ""),
                 "blog_id": blog_id,
+                "portal_id": portal_id,
+                "edit_url": hubspot_edit_url(portal_id, post_id),
                 "created_at": datetime.utcnow().isoformat(),
             }
         msg = (r.json() or {}).get("message", r.text[:200])

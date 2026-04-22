@@ -23,6 +23,7 @@ import streamlit.components.v1 as components  # noqa: E402
 
 from lib import agents as agentlib  # noqa: E402
 from lib import composer, distribution, email_sender, runs  # noqa: E402
+from lib.textutils import friendly_error  # noqa: E402
 from lib.theme import COLORS, GRADIENTS, inject_theme  # noqa: E402
 
 # ---------------------------------------------------------------------------
@@ -42,13 +43,16 @@ inject_theme(st)
 # Constants
 # ---------------------------------------------------------------------------
 
+# Concerto's structure: three Movements with The Cue between Movement I and II.
+# A concerto is canonically 3 movements; the conductor's cue between movements
+# is a structural pause, not a movement of its own. Approval = the Cue.
+#   tuple = (phase_id, kind, label)   where kind in {"movement", "cue"}.
 MOVEMENTS = [
-    ("intelligence", "Movement I · Intelligence"),
-    ("awaiting_approval", "Movement II · Approval"),
-    ("executing", "Movement III · Composition"),
-    ("distribution", "Movement IV · Distribution"),
+    ("intelligence", "movement", "Movement I · Intelligence"),
+    ("awaiting_approval", "cue", "◆ The Cue"),
+    ("executing", "movement", "Movement II · Composition"),
+    ("distribution", "movement", "Movement III · Distribution"),
 ]
-ORDER = ["preview", "idle", "intelligence", "awaiting_approval", "executing", "distribution"]
 
 
 # ---------------------------------------------------------------------------
@@ -105,24 +109,40 @@ def ingest_uploaded_file(uploaded) -> tuple[str, str]:
 # Session state defaults
 # ---------------------------------------------------------------------------
 
-DEFAULTS = {
-    "phase": "preview",             # preview | idle | intelligence | awaiting_approval | executing | distribution
-    "source_stem": "",
-    "source_md": "",
-    "debate_history": [],
-    "synth_brief": "",
-    "approval_token": "",
-    "approval_email_sent": False,
-    "approved": False,
-    "started_at": None,
-    "phase1_elapsed": None,
-    "magic_link_arrived": False,    # True when this session loaded with ?token=...&action=approve
-    # Movement III/IV state
-    "assets": {},                   # {asset_id: {"content": str, "elapsed": float, "saved_path": str}}
-    "composition_done": False,
-    "ship_status": {},              # {asset_id: {"ok": bool, "msg": str, "url": str?}}
-}
-for _k, _v in DEFAULTS.items():
+def _fresh_defaults() -> dict:
+    """Return a fresh copy of session defaults.
+
+    Defined as a function (not a module-level dict) so every reset / init gets
+    its own mutable instances. Otherwise multiple sessions share the same
+    {} / [] objects and state leaks across runs.
+    """
+    return {
+        "phase": "preview",             # preview | idle | intelligence | awaiting_approval | executing | distribution
+        "source_stem": "",
+        "source_md": "",
+        "debate_history": [],
+        "synth_brief": "",
+        "approval_token": "",
+        "approval_email_sent": False,
+        "approved": False,
+        "started_at": None,
+        "magic_link_arrived": False,    # True when this session loaded with ?token=...&action=approve
+        # Movement II / III state
+        "assets": {},                   # {asset_id: {"content": str, "elapsed": float, "saved_path": str}}
+        "assets_failed": {},            # {asset_id: error_msg} -- assets that failed in last attempt
+        "composition_done": False,
+        "ship_status": {},              # {asset_id: {"ok": bool, "msg": str, "url": str?}}
+    }
+
+
+def reset_session_to_defaults() -> None:
+    """Wipe and re-initialize all session_state keys we own."""
+    for _k, _v in _fresh_defaults().items():
+        st.session_state[_k] = _v
+
+
+# Initialize any missing keys on first load (preserves keys already in session).
+for _k, _v in _fresh_defaults().items():
     if _k not in st.session_state:
         st.session_state[_k] = _v
 
@@ -174,7 +194,14 @@ def handle_magic_link():
 
     if action == "approve":
         runs.mark_approved(token)
-        # Render confirmation page and stop
+        # Clear the URL params so a refresh / reload doesn't re-trap this
+        # browser tab on the confirmation page. Without this, ?token=...&action=
+        # persists in the URL and every rerun calls handle_magic_link again,
+        # making it impossible to navigate to any other phase from this tab.
+        try:
+            st.query_params.clear()
+        except Exception:
+            pass
         st.markdown(
             f"""
             <div style="padding:48px 0;text-align:center;">
@@ -218,15 +245,16 @@ def render_phase_rail():
             current_idx = -1
 
     parts = ['<div class="symphony-phase-rail">']
-    for i, (phase_id, label) in enumerate(MOVEMENTS):
+    for i, (_phase_id, kind, label) in enumerate(MOVEMENTS):
         if i < current_idx:
             cls = "complete"
         elif i == current_idx:
             cls = "active"
         else:
             cls = ""
+        kind_cls = "cue" if kind == "cue" else "movement"
         parts.append(
-            f'<div class="symphony-phase-step {cls}">'
+            f'<div class="symphony-phase-step {kind_cls} {cls}">'
             f'<span class="symphony-phase-dot"></span>'
             f"<span>{label}</span>"
             f"</div>"
@@ -262,6 +290,10 @@ def render_agent_header(agent_id: str, status: str = "thinking"):
 
 def escape_dollars(text: str) -> str:
     return text.replace("$", r"\$")
+
+
+# friendly_error() lives in lib/textutils.py so it can be unit-tested without
+# pulling in Streamlit. Imported above; usage unchanged at call sites.
 
 
 def render_debate_recap():
@@ -317,7 +349,9 @@ def linkedin_copy_open_button(text: str, button_id: str, label: str = "Copy + Op
     payload = json.dumps(text)
     html = f"""
     <div style="margin:8px 0;">
-      <button id="{button_id}" style="
+      <button id="{button_id}" type="button"
+              aria-label="{label}: copy LinkedIn post to clipboard and open the LinkedIn composer in a new tab"
+              style="
         background: linear-gradient(135deg, #818CF8 0%, #A78BFA 50%, #E879F9 100%);
         color: white;
         border: none;
@@ -329,8 +363,8 @@ def linkedin_copy_open_button(text: str, button_id: str, label: str = "Copy + Op
         letter-spacing: 0.3px;
         box-shadow: 0 4px 16px rgba(129,140,248,0.30);
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      ">in  {label}  ↗</button>
-      <span id="{button_id}_status" style="margin-left:14px;color:#34D399;font-size:13px;font-weight:600;display:none;">✓ Copied</span>
+      "><span aria-hidden="true">in</span>&nbsp;&nbsp;{label}&nbsp;&nbsp;<span aria-hidden="true">↗</span></button>
+      <span id="{button_id}_status" role="status" aria-live="polite" style="margin-left:14px;color:#34D399;font-size:13px;font-weight:600;display:none;">✓ Copied</span>
     </div>
     <script>
       (function() {{
@@ -363,7 +397,9 @@ def universal_copy_button(text: str, button_id: str, label: str = "Copy text"):
     payload = json.dumps(text)
     html = f"""
     <div style="margin:8px 0;">
-      <button id="{button_id}" style="
+      <button id="{button_id}" type="button"
+              aria-label="{label}: copy asset content to clipboard"
+              style="
         background: #1E2748;
         color: #F1F5F9;
         border: 1px solid #283354;
@@ -373,8 +409,8 @@ def universal_copy_button(text: str, button_id: str, label: str = "Copy text"):
         font-size: 13px;
         cursor: pointer;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      ">⧉  {label}</button>
-      <span id="{button_id}_status" style="margin-left:14px;color:#34D399;font-size:13px;font-weight:600;display:none;">✓ Copied to clipboard</span>
+      "><span aria-hidden="true">⧉</span>&nbsp;&nbsp;{label}</button>
+      <span id="{button_id}_status" role="status" aria-live="polite" style="margin-left:14px;color:#34D399;font-size:13px;font-weight:600;display:none;">✓ Copied to clipboard</span>
     </div>
     <script>
       (function() {{
@@ -426,32 +462,35 @@ def render_preview_page():
 
     st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
 
+    # Three Movements. The Cue (approval) sits between Movements I and II as
+    # a structural pause -- mentioned verbally, not given its own card.
     cards = [
         {
             "movement": "Movement I",
             "title": "Intelligence",
             "icon": "◇",
             "duration": "~60 seconds",
-            "desc": "Two AI strategists — Maya for brand, Marcus for pipeline — debate the best campaign play for the source document. Sterling, the Director, synthesizes the argument into the brief.",
+            "desc": "Two AI strategists — Maya for brand, Marcus for pipeline — debate the best campaign play for the source document. Sterling, the Director, synthesizes the argument into a brief and routes it to the conductor's inbox for the cue.",
         },
         {
             "movement": "Movement II",
-            "title": "Approval",
-            "icon": "◆",
-            "duration": "~30 seconds",
-            "desc": "The brief routes to the conductor's inbox. Read. Approve. Or send back for refinement. The orchestra waits for the cue.",
-        },
-        {
-            "movement": "Movement III",
             "title": "Composition",
             "icon": "◈",
             "duration": "~90 seconds",
-            "desc": "Concerto composes ten marketing assets in the PureFacts voice and ships each to its destination — LinkedIn, HubSpot CMS, the team's inbox. Distribution follows the score.",
+            "desc": "Once the conductor cues, Concerto composes ten marketing assets in the PureFacts voice — LinkedIn posts, nurture emails, BDR sequence, blog post, sales one-pager, enablement, and more. The orchestra plays the score.",
+        },
+        {
+            "movement": "Movement III",
+            "title": "Distribution",
+            "icon": "◆",
+            "duration": "~30 seconds",
+            "desc": "Each asset ships to its destination — LinkedIn, HubSpot CMS, the team's inbox — with a single click per channel. The performance reaches the audience.",
         },
     ]
 
-    # Collapsible composition cards -- collapsed by default so the conductor can
-    # speak first, then expand on cue during the demo.
+    # Composition cards collapsed by default. The conductor introduces the
+    # three movements verbally first, then expands on cue. Stops the audience
+    # from reading ahead while the speaker is still framing.
     with st.expander("◇  The Composition  ·  three movements", expanded=False):
         cols = st.columns(3, gap="medium")
         for col, card in zip(cols, cards):
@@ -475,7 +514,9 @@ def render_preview_page():
 
     st.markdown('<div style="height:32px;"></div>', unsafe_allow_html=True)
 
-    cols = st.columns([1, 3])
+    # Wider button column (was [1, 3] = ~25% width) so the singular CTA reads
+    # confidently from the back of a Townhall room on a projector.
+    cols = st.columns([2, 3])
     with cols[0]:
         if st.button("◈  Take the Podium  →", type="primary", use_container_width=True):
             st.session_state.phase = "idle"
@@ -511,7 +552,9 @@ def render_idle_page():
 
     st.markdown('<div style="height:18px;"></div>', unsafe_allow_html=True)
 
-    cols = st.columns([1, 2])
+    # Wider button column (was [1, 2] = ~33% width) so the primary action is
+    # visible from the back of a Townhall room.
+    cols = st.columns([2, 3])
     with cols[0]:
         begin = st.button(
             "◈  Compose Magic",
@@ -679,8 +722,10 @@ def send_brief_for_approval(brief_md: str, source_stem: str, approve_url: str) -
 
 def render_intelligence_phase():
     render_eyebrow(f"CONCERTO · {st.session_state.source_stem}")
+    # H1 is "Strategy." -- single noun parallel to "Composition." and
+    # "Distribution." Avoids collision with Movement II's "Composing/Composition."
     st.markdown(
-        '<h1 class="symphony-h1" style="font-size:44px;">Composing.</h1>',
+        '<h1 class="symphony-h1" style="font-size:44px;">Strategy.</h1>',
         unsafe_allow_html=True,
     )
     render_phase_rail()
@@ -696,10 +741,40 @@ def render_intelligence_phase():
         st.stop()
 
     client = genai.Client(api_key=api_key)
-    history, brief = run_intelligence_phase(client, st.session_state.source_md)
+
+    # Wrap the streaming so a Gemini hiccup (rate limit, network drop, content
+    # filter, RESOURCE_EXHAUSTED) becomes a recoverable on-screen card instead
+    # of a Python traceback in the most attention-heavy moment of the demo.
+    try:
+        history, brief = run_intelligence_phase(client, st.session_state.source_md)
+    except Exception as exc:
+        st.markdown(
+            f'<div class="symphony-error-banner" style="margin-top:18px;">'
+            f"Movement I — {escape_dollars(friendly_error(exc, fallback_prefix='Movement I hit a snag'))}"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            f'<p style="color:{COLORS["text_dim"]};margin:14px 0 22px 0;font-size:15px;">'
+            "This usually means a temporary network or quota hiccup with Gemini. "
+            "Click below to re-run Movement I from the top, or fall back to the upload screen."
+            "</p>",
+            unsafe_allow_html=True,
+        )
+        cols = st.columns([1, 1, 2])
+        with cols[0]:
+            if st.button("↻  Retry Movement I", type="primary", use_container_width=True):
+                st.session_state.started_at = time.time()
+                st.rerun()
+        with cols[1]:
+            if st.button("←  Back to Upload", use_container_width=True):
+                reset_session_to_defaults()
+                st.session_state.phase = "idle"
+                st.rerun()
+        st.stop()
+
     st.session_state.debate_history = history
     st.session_state.synth_brief = brief
-    st.session_state.phase1_elapsed = time.time() - (st.session_state.started_at or time.time())
 
     # Persist run + send magic link email
     token = runs.new_token()
@@ -751,7 +826,7 @@ def render_awaiting_approval_page():
                     Open <strong>{st.secrets.get('APPROVAL_EMAIL', '')}</strong> and click <strong>Approve and Execute</strong>. This page will advance automatically.
                   </div>
                 </div>
-                <span class="symphony-pill streaming">Polling</span>
+                <span class="symphony-pill thinking">Polling</span>
               </div>
             </div>
             """,
@@ -798,13 +873,25 @@ def render_awaiting_approval_page():
         st.session_state.phase = "executing"
         st.rerun()
     if restart:
-        for k in DEFAULTS:
-            st.session_state[k] = DEFAULTS[k]
+        reset_session_to_defaults()
         st.rerun()
 
 
-def _asset_card_html(asset: dict, status: str, elapsed: float | None = None) -> str:
-    """Render the asset card header HTML with the right status pill + border."""
+def _asset_card_html(
+    asset: dict,
+    status: str,
+    elapsed: float | None = None,
+    error: str | None = None,
+    source_stem: str | None = None,
+) -> str:
+    """Render the asset card header HTML with the right status pill + border.
+
+    Statuses:
+      - "composing": pink border, "Composing" pill
+      - "complete":  green border, "Complete" pill, elapsed + saved-path meta
+      - "failed":    red border, "Failed" pill, error message meta
+      - anything else: neutral, "Pending" pill
+    """
     if status == "composing":
         card_cls = "symphony-asset-card composing"
         pill_html = '<span class="symphony-pill streaming">Composing</span>'
@@ -812,11 +899,25 @@ def _asset_card_html(asset: dict, status: str, elapsed: float | None = None) -> 
     elif status == "complete":
         card_cls = "symphony-asset-card complete"
         pill_html = '<span class="symphony-pill complete">Complete</span>'
+        path_segment = (
+            f"{escape_dollars(source_stem)}/{escape_dollars(asset['id'])}.md"
+            if source_stem
+            else f"{escape_dollars(asset['id'])}.md"
+        )
         meta = (
             f'<div style="font-size:11px;letter-spacing:0.4px;color:{COLORS["text_mute"]};margin-top:6px;">'
-            f"Composed in {elapsed:.1f}s · saved to /output/{escape_dollars(asset['id'])}.md"
+            f"Composed in {elapsed:.1f}s · saved to /output/{path_segment}"
             f"</div>"
         ) if elapsed is not None else ""
+    elif status == "failed":
+        card_cls = "symphony-asset-card failed"
+        pill_html = '<span class="symphony-pill failed">Failed</span>'
+        err_text = escape_dollars(error or "unknown error")
+        meta = (
+            f'<div style="font-size:12px;color:{COLORS["danger"]};margin-top:8px;line-height:1.45;">'
+            f"{err_text}"
+            f"</div>"
+        )
     else:
         card_cls = "symphony-asset-card"
         pill_html = '<span class="symphony-pill pending">Pending</span>'
@@ -856,8 +957,37 @@ def _streaming_preview_html(text: str, done: bool = False) -> str:
     )
 
 
+def _emit_autoscroll() -> None:
+    """Inject a tiny iframe that scrolls the Streamlit page to its bottom.
+
+    Used during Movement II so the audience always sees the currently-composing
+    card without the conductor needing to scroll. Triggered once per asset
+    transition (not per stream chunk) so the scroll feels deliberate, not jumpy.
+    """
+    components.html(
+        """
+        <script>
+          try {
+            const doc = window.parent ? window.parent.document : document;
+            // Streamlit's main scroll container lives under section.main; the
+            // selector list covers older + newer Streamlit versions.
+            const main =
+                doc.querySelector('section.main') ||
+                doc.querySelector('[data-testid="stMain"]') ||
+                doc.scrollingElement ||
+                doc.body;
+            if (main && main.scrollTo) {
+              main.scrollTo({top: main.scrollHeight, behavior: 'smooth'});
+            }
+          } catch (e) { /* popup blockers / cross-origin -- no-op */ }
+        </script>
+        """,
+        height=0,
+    )
+
+
 def render_executing_phase():
-    """Movement III: Composition. Generate the 10 assets via Gemini, streaming each."""
+    """Movement II: Composition. Generate the 10 assets via Gemini, streaming each."""
     render_eyebrow(f"CONCERTO · {st.session_state.source_stem}")
     st.markdown(
         '<h1 class="symphony-h1" style="font-size:44px;">Composition.</h1>',
@@ -890,16 +1020,41 @@ def render_executing_phase():
     client = genai.Client(api_key=api_key)
     multiply_prompt = composer.load_multiply_prompt()
     context_bundle = agentlib.load_context_bundle()
+    source_stem = st.session_state.source_stem
 
-    composed: dict[str, dict] = {}
-
+    # Iterate every asset. If it's already in session_state.assets (from a
+    # previous attempt), we re-render the green "Complete" card and skip the
+    # Gemini call -- this is what makes "Retry failed assets" cheap. Failed
+    # assets get re-attempted; new failures stay tracked in assets_failed.
     for asset in composer.ASSETS:
-        # Per-asset placeholders (so we can update card AND preview on completion)
+        asset_id = asset["id"]
         card_placeholder = st.empty()
         preview_placeholder = st.empty()
 
-        # Initial composing state
+        # Already composed in a prior attempt -- replay the card and move on.
+        if asset_id in st.session_state.assets:
+            existing = st.session_state.assets[asset_id]
+            card_placeholder.markdown(
+                _asset_card_html(
+                    asset, "complete",
+                    elapsed=existing.get("elapsed"),
+                    source_stem=source_stem,
+                ),
+                unsafe_allow_html=True,
+            )
+            clean_final = distribution.strip_yaml_frontmatter(existing.get("content", ""))
+            snippet = clean_final[:320] + ("..." if len(clean_final) > 320 else "")
+            preview_placeholder.markdown(
+                _streaming_preview_html(snippet, done=True),
+                unsafe_allow_html=True,
+            )
+            continue
+
+        # Fresh attempt (or a retry of a previously-failed asset).
         card_placeholder.markdown(_asset_card_html(asset, "composing"), unsafe_allow_html=True)
+        # Auto-scroll the page so the active card stays in view -- once per
+        # asset transition, not per stream chunk (avoids jumpy behavior).
+        _emit_autoscroll()
 
         t0 = time.time()
         chunks: list[str] = []
@@ -909,7 +1064,6 @@ def render_executing_phase():
                 st.session_state.synth_brief, multiply_prompt, context_bundle,
             ):
                 chunks.append(piece)
-                # Strip YAML noise + show last ~700 chars in a clean monospace box
                 so_far = "".join(chunks)
                 clean = distribution.strip_yaml_frontmatter(so_far)
                 tail = clean[-700:] if len(clean) > 700 else clean
@@ -918,49 +1072,79 @@ def render_executing_phase():
                     unsafe_allow_html=True,
                 )
         except Exception as exc:
-            card_placeholder.markdown(_asset_card_html(asset, "composing"), unsafe_allow_html=True)
-            preview_placeholder.markdown(
-                f'<div class="symphony-error-banner">Composition failed: {escape_dollars(str(exc))}</div>',
+            err_msg = friendly_error(exc, fallback_prefix="Composer hit a snag")
+            st.session_state.assets_failed[asset_id] = err_msg
+            card_placeholder.markdown(
+                _asset_card_html(asset, "failed", error=err_msg),
                 unsafe_allow_html=True,
             )
+            preview_placeholder.empty()
             continue
 
         elapsed = time.time() - t0
         full_content = "".join(chunks)
 
         try:
-            saved_path = composer.save_asset(
-                st.session_state.source_stem, asset["id"], full_content
-            )
+            saved_path = composer.save_asset(source_stem, asset_id, full_content)
         except Exception as exc:
             saved_path = None
-            st.warning(f"Could not save {asset['id']}: {exc}")
+            st.warning(f"Could not save {asset_id}: {exc}")
 
-        composed[asset["id"]] = {
+        st.session_state.assets[asset_id] = {
             "content": full_content,
             "elapsed": elapsed,
             "saved_path": str(saved_path) if saved_path else "",
         }
+        st.session_state.assets_failed.pop(asset_id, None)
 
-        # Final state: green "Complete" card + clean preview snippet
         clean_final = distribution.strip_yaml_frontmatter(full_content)
         snippet = clean_final[:320] + ("..." if len(clean_final) > 320 else "")
-        card_placeholder.markdown(_asset_card_html(asset, "complete", elapsed=elapsed), unsafe_allow_html=True)
+        card_placeholder.markdown(
+            _asset_card_html(asset, "complete", elapsed=elapsed, source_stem=source_stem),
+            unsafe_allow_html=True,
+        )
         preview_placeholder.markdown(
             _streaming_preview_html(snippet, done=True),
             unsafe_allow_html=True,
         )
 
-    st.session_state.assets = composed
-    st.session_state.composition_done = True
+    # Decide what action UI to show based on what survived.
+    n_failed = len(st.session_state.assets_failed)
+    n_done = len(st.session_state.assets)
+    n_total = len(composer.ASSETS)
+
     st.markdown('<div style="height:24px;"></div>', unsafe_allow_html=True)
-    if st.button("◈  Continue to Distribution  →", type="primary", use_container_width=False):
-        st.session_state.phase = "distribution"
-        st.rerun()
+
+    if n_failed == 0:
+        # Clean run -- mark composition complete, offer the primary continue button.
+        st.session_state.composition_done = True
+        if st.button("◈  Continue to Distribution  →", type="primary", use_container_width=False):
+            st.session_state.phase = "distribution"
+            st.rerun()
+    else:
+        # Partial run -- offer Retry (re-attempt only failures) or Continue
+        # (ship the assets that did succeed). composition_done stays False
+        # so the auto-skip at the top of this function doesn't fire.
+        st.markdown(
+            f'<div class="symphony-error-banner" style="margin:0 0 14px 0;">'
+            f"{n_failed} of {n_total} assets failed to compose. "
+            f"Retry to re-attempt them, or continue with the {n_done} that succeeded."
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+        cols = st.columns([1, 1, 2])
+        with cols[0]:
+            if st.button("↻  Retry Failed Assets", type="primary", use_container_width=True):
+                st.rerun()
+        with cols[1]:
+            if st.button(f"◈  Continue with {n_done} →", use_container_width=True):
+                st.session_state.composition_done = True
+                st.session_state.phase = "distribution"
+                st.rerun()
 
 
 # ---------------------------------------------------------------------------
-# Movement IV: Distribution
+# Movement III: Distribution
 # ---------------------------------------------------------------------------
 
 
@@ -1026,20 +1210,54 @@ def render_distribution_card(asset: dict, content: str):
             st.rerun()
 
         if ship_state and ship_state.get("ok"):
+            edit_url = ship_state.get("edit_url") or "https://app.hubspot.com/"
+            post_title = ship_state.get("title", "")
+            post_id = ship_state.get("post_id", "")
+
+            # 1) Auto-open HubSpot in a new tab the first time we render this
+            #    success state. We track via session_state so a Streamlit rerun
+            #    doesn't re-open the tab on every refresh. Popup blockers may
+            #    suppress this since the gesture chain is broken by the rerun;
+            #    the manual button below is the always-works fallback.
+            opened_key = f"hs_opened_{asset_id}"
+            if not st.session_state.get(opened_key):
+                components.html(
+                    f"""
+                    <script>
+                      try {{
+                        window.open({json.dumps(edit_url)}, '_blank', 'noopener,noreferrer');
+                      }} catch (e) {{}}
+                    </script>
+                    """,
+                    height=0,
+                )
+                st.session_state[opened_key] = True
+
+            # 2) Visceral success state: title + post id + a prominent gradient
+            #    "View in HubSpot" button (the always-works fallback for popup
+            #    blockers + the audience's primary visual cue that something
+            #    real just happened).
             st.markdown(
                 f"""
                 <div class="symphony-success-banner">
                   <div class="dot"></div>
-                  <div>Draft created in HubSpot CMS. Post ID: <code>{ship_state.get('post_id', '')}</code></div>
+                  <div style="flex:1;">
+                    <div style="font-weight:700;">Draft live in HubSpot CMS</div>
+                    <div style="color:{COLORS['text_dim']};font-weight:400;font-size:13px;margin-top:2px;">
+                      <strong style="color:{COLORS['text']};font-weight:600;">{escape_dollars(post_title)}</strong>
+                      &nbsp;·&nbsp; Post ID <code>{post_id}</code>
+                    </div>
+                  </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
             st.markdown(
-                f'<a href="https://app.hubspot.com/" target="_blank" '
-                f'style="display:inline-block;margin-top:4px;padding:10px 18px;background:{COLORS["surface_2"]};'
-                f'border:1px solid {COLORS["border_lift"]};color:{COLORS["text"]};text-decoration:none;'
-                f'border-radius:12px;font-weight:600;font-size:13px;">Open HubSpot ↗</a>',
+                f'<a href="{edit_url}" target="_blank" rel="noopener" '
+                f'style="display:inline-block;margin-top:8px;padding:12px 22px;'
+                f'background:{GRADIENTS["brand"]};border:none;color:white;text-decoration:none;'
+                f'border-radius:12px;font-weight:700;font-size:14px;letter-spacing:0.3px;'
+                f'box-shadow:0 4px 16px rgba(129,140,248,0.30);">View in HubSpot ↗</a>',
                 unsafe_allow_html=True,
             )
 
@@ -1105,7 +1323,6 @@ def render_distribution_phase():
     st.markdown('<div style="height:18px;"></div>', unsafe_allow_html=True)
 
     # Group assets by category and render
-    asset_by_id = {a["id"]: a for a in composer.ASSETS}
     for cat_id, cat_title, cat_subtitle in CATEGORIES:
         cat_assets = [a for a in composer.ASSETS if a["category"] == cat_id]
         if not cat_assets:
@@ -1131,8 +1348,7 @@ def render_distribution_phase():
     cols = st.columns([1, 3])
     with cols[0]:
         if st.button("↻  New Performance", use_container_width=True):
-            for k in DEFAULTS:
-                st.session_state[k] = DEFAULTS[k]
+            reset_session_to_defaults()
             st.rerun()
 
 
@@ -1159,6 +1375,5 @@ elif phase == "distribution":
 else:
     st.error(f"Unknown phase: {phase}")
     if st.button("Reset"):
-        for k in DEFAULTS:
-            st.session_state[k] = DEFAULTS[k]
+        reset_session_to_defaults()
         st.rerun()

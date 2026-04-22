@@ -8,11 +8,14 @@ from __future__ import annotations
 
 import json
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 RUNS_DIR = ROOT / "runs"
+
+# Runs older than this are considered abandoned and pruned on next write.
+DEFAULT_RUN_TTL_HOURS = 24
 
 
 def new_token() -> str:
@@ -32,8 +35,9 @@ def write_run(
     debate_history: list[dict],
     synth_brief: str,
 ) -> Path:
-    """Persist a fresh run as awaiting approval."""
+    """Persist a fresh run as awaiting approval. Prunes stale runs first."""
     RUNS_DIR.mkdir(exist_ok=True)
+    prune_stale_runs()  # opportunistic cleanup so the dir doesn't grow forever
     payload = {
         "token": token,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -47,6 +51,33 @@ def write_run(
     path = _path_for(token)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     return path
+
+
+def prune_stale_runs(ttl_hours: int = DEFAULT_RUN_TTL_HOURS) -> int:
+    """Delete run files older than ttl_hours. Returns count deleted.
+
+    Called opportunistically by write_run so the runs/ directory stays small
+    over time without needing an external cron job. Failures (permission,
+    malformed JSON, vanished file mid-iteration) are silently ignored -- this
+    is best-effort housekeeping, not a critical path.
+    """
+    if not RUNS_DIR.exists():
+        return 0
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=ttl_hours)
+    deleted = 0
+    for path in RUNS_DIR.glob("*.json"):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            created_str = data.get("created_at", "")
+            if not created_str:
+                continue
+            created = datetime.fromisoformat(created_str)
+            if created < cutoff:
+                path.unlink(missing_ok=True)
+                deleted += 1
+        except (OSError, ValueError, json.JSONDecodeError):
+            continue
+    return deleted
 
 
 def load_run(token: str) -> dict | None:

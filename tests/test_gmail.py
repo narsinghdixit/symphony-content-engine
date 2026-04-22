@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
-"""Test the Gmail SMTP send flow.
+"""Manual integration script for the Gmail SMTP send flow.
 
-Sends a test approval-workflow email containing the sales one-pager
-(rendered from markdown to HTML) to the configured APPROVAL_EMAIL using
-a Gmail App Password.
+WARNING -- This is NOT a unit test. It is a manual smoke-runner that sends a
+REAL email through Gmail SMTP to your APPROVAL_EMAIL inbox. It is intentionally
+named test_*.py for historical reasons but pytest will skip it (no test_*
+function defined). DO NOT run before the demo -- it will spam your inbox and
+consume Gmail's daily SMTP quota.
+
+Run only when manually verifying credentials end-to-end:
+    python3 tests/test_gmail.py
+
+For fast pure-function unit tests, see tests/test_textutils.py, test_runs.py,
+test_hubspot_helpers.py (no API calls, no inbox spam).
 """
 import re
 import smtplib

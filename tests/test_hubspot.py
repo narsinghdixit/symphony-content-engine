@@ -1,9 +1,17 @@
 #!/usr/bin/env python3
-"""Test the HubSpot CMS Blog draft creation flow.
+"""Manual integration script for the HubSpot CMS Blog draft creation flow.
 
-Uses the HubSpot CMS Blog API (requires `content` scope) to push the
-generated blog post into HubSpot CMS as a draft. Validates the token
-end-to-end and prints a URL to view the draft inside HubSpot.
+WARNING -- This is NOT a unit test. It is a manual smoke-runner that creates a
+REAL draft post in your HubSpot CMS account. It is intentionally named test_*.py
+for historical reasons but pytest will skip it (no test_* function defined).
+DO NOT run before the demo -- it pollutes the HubSpot drafts list with
+"[Symphony Test]" entries that have to be cleaned up by hand.
+
+Run only when manually verifying the HubSpot token + scopes end-to-end:
+    python3 tests/test_hubspot.py
+
+For fast pure-function unit tests, see tests/test_textutils.py, test_runs.py,
+test_hubspot_helpers.py (no API calls, no draft pollution).
 """
 import re
 import sys

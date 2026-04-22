@@ -11,10 +11,14 @@ from pathlib import Path
 from google import genai
 from google.genai import types
 
+from lib.textutils import strip_yaml_frontmatter
+
 ROOT = Path(__file__).resolve().parent.parent
 PROMPTS_DIR = ROOT / "prompts"
 OUTPUT_DIR = ROOT / "output"
 
+# Latest stable general-purpose Gemini Flash text model (verified Apr 2026).
+# Same model used for the debate agents; see lib/agents.py for rationale.
 COMPOSER_MODEL = "gemini-2.5-flash"
 
 # ---------------------------------------------------------------------------
@@ -29,6 +33,18 @@ COMPOSER_MODEL = "gemini-2.5-flash"
 #   distribution  -- which action button(s) appear in Movement IV
 #   spec          -- inline summary of what to generate
 
+# Asset list ordering = composition order in Movement II.
+# Sequenced for narrative variety + early peak attention:
+#   1. linkedin-narsingh        -- fast, recognizable opener (sets the bar)
+#   2. blog-post                -- most substantive piece while attention is highest
+#   3. nurture-email-1-wealth   -- wealth ICP
+#   4. bdr-sequence-asset-mgr   -- ASSET MGR pivot, visible ICP shift
+#   5. nurture-email-2-wealth   -- wealth ICP again
+#   6. sales-one-pager          -- different format (table-heavy)
+#   7. objection-handling       -- internal-facing (different audience)
+#   8. nurture-email-3-wealth   -- wealth ICP, hardest ask
+#   9. enablement-talking-points-- internal, lower wow
+#  10. linkedin-ceo             -- closing flourish, leadership name drop
 ASSETS = [
     {
         "id": "linkedin-narsingh",
@@ -44,15 +60,17 @@ ASSETS = [
         ),
     },
     {
-        "id": "linkedin-ceo",
-        "label": "LinkedIn Post · Rob Madej (CEO)",
-        "icon": "in",
-        "category": "linkedin",
-        "distribution": "linkedin",
+        "id": "blog-post",
+        "label": "Blog Post",
+        "icon": "❡",
+        "category": "blog",
+        "distribution": "hubspot",
         "spec": (
-            "A 150-220 word LinkedIn post in Rob Madej's CEO voice (measured, industry-forward, "
-            "founder gravitas). Lead with a macro trend the source illuminates. Reference one "
-            "data point. Subtly position PureFacts' worldview without selling. No product names."
+            "600-800 word blog post in PureFacts corporate voice. **Title MUST be 65 characters "
+            "or fewer.** Open with the counterintuitive insight from EXTRACT (2-3 sentence hook). "
+            "Three sections: The Problem (~200 words, expand with data), Why This Matters Now "
+            "(~150 words, why-now from positioning.md), A Better Approach (~200 words, PureFacts "
+            "philosophy + proof points). Closing CTA linking to https://purefacts.com/contact/."
         ),
     },
     {
@@ -70,6 +88,20 @@ ASSETS = [
         ),
     },
     {
+        "id": "bdr-sequence-asset-mgr",
+        "label": "BDR Sequence · Asset Manager",
+        "icon": "◎",
+        "category": "outreach",
+        "distribution": "copy",
+        "spec": (
+            "3-touch BDR outbound sequence for asset manager (COO / CFO / Head of Fund Admin). "
+            "Each touch ≤90 words. Use asset-manager vocabulary (fee realization, NAV impact, "
+            "fund administration, domiciles). Touch 1 cold open with EXTRACT data point. Touch 2 "
+            "(3-4 days later) value add with PureFacts proof point (£750B+ AUM client, 30%+ "
+            "billing cycle reduction). Touch 3 (5-7 days later) breakup, offer one-pager."
+        ),
+    },
+    {
         "id": "nurture-email-2-wealth",
         "label": "Nurture Email 2 · Mid Funnel",
         "icon": "✉",
@@ -82,34 +114,6 @@ ASSETS = [
             "85% dispute reduction stat. Medium CTA: 'See how one firm unlocked $13M' linking to "
             "https://purefacts.com/how-a-leading-wealth-manager-unlocked-over-13m-in-annual-value-by-replacing-legacy-infrastructure/. "
             "Sign off as Narsingh."
-        ),
-    },
-    {
-        "id": "nurture-email-3-wealth",
-        "label": "Nurture Email 3 · Bottom Funnel",
-        "icon": "✉",
-        "category": "email",
-        "distribution": "copy",
-        "spec": (
-            "Bottom-of-funnel nurture email for wealth manager. <150 words in body. Subject, "
-            "preview, body. Direct ask. Name PureFacts for the first time, one sentence on what "
-            "we do (from positioning.md core), one proof point, then ask for 20 minutes with a "
-            "CTA linking to https://purefacts.com/contact/. Sign off as Narsingh with title and "
-            "contact placeholder for phone."
-        ),
-    },
-    {
-        "id": "bdr-sequence-asset-mgr",
-        "label": "BDR Sequence · Asset Manager",
-        "icon": "◎",
-        "category": "outreach",
-        "distribution": "copy",
-        "spec": (
-            "3-touch BDR outbound sequence for asset manager (COO / CFO / Head of Fund Admin). "
-            "Each touch ≤90 words. Use asset-manager vocabulary (fee realization, NAV impact, "
-            "fund administration, domiciles). Touch 1 cold open with EXTRACT data point. Touch 2 "
-            "(3-4 days later) value add with PureFacts proof point (£750B+ AUM client, 30%+ "
-            "billing cycle reduction). Touch 3 (5-7 days later) breakup, offer one-pager."
         ),
     },
     {
@@ -141,17 +145,17 @@ ASSETS = [
         ),
     },
     {
-        "id": "blog-post",
-        "label": "Blog Post",
-        "icon": "❡",
-        "category": "blog",
-        "distribution": "hubspot",
+        "id": "nurture-email-3-wealth",
+        "label": "Nurture Email 3 · Bottom Funnel",
+        "icon": "✉",
+        "category": "email",
+        "distribution": "copy",
         "spec": (
-            "600-800 word blog post in PureFacts corporate voice. **Title MUST be 65 characters "
-            "or fewer.** Open with the counterintuitive insight from EXTRACT (2-3 sentence hook). "
-            "Three sections: The Problem (~200 words, expand with data), Why This Matters Now "
-            "(~150 words, why-now from positioning.md), A Better Approach (~200 words, PureFacts "
-            "philosophy + proof points). Closing CTA linking to https://purefacts.com/contact/."
+            "Bottom-of-funnel nurture email for wealth manager. <150 words in body. Subject, "
+            "preview, body. Direct ask. Name PureFacts for the first time, one sentence on what "
+            "we do (from positioning.md core), one proof point, then ask for 20 minutes with a "
+            "CTA linking to https://purefacts.com/contact/. Sign off as Narsingh with title and "
+            "contact placeholder for phone."
         ),
     },
     {
@@ -166,6 +170,18 @@ ASSETS = [
             "lines an AE can say), PROOF POINTS (4-5 stats pre-formatted for verbal delivery), "
             "COMPETITIVE HANDLES (3-4 reframes vs. BillFin, Advent, in-house, do-nothing). "
             "Practical, not slide-deck language."
+        ),
+    },
+    {
+        "id": "linkedin-ceo",
+        "label": "LinkedIn Post · Rob Madej (CEO)",
+        "icon": "in",
+        "category": "linkedin",
+        "distribution": "linkedin",
+        "spec": (
+            "A 150-220 word LinkedIn post in Rob Madej's CEO voice (measured, industry-forward, "
+            "founder gravitas). Lead with a macro trend the source illuminates. Reference one "
+            "data point. Subtly position PureFacts' worldview without selling. No product names."
         ),
     },
 ]
@@ -275,9 +291,16 @@ def stream_asset(
 
 
 def save_asset(source_stem: str, asset_id: str, content: str) -> Path:
-    """Write one composed asset to /output/{source_stem}/{asset_id}.md"""
+    """Write one composed asset to /output/{source_stem}/{asset_id}.md.
+
+    Strips the YAML/markdown code-fence wrapper Gemini sometimes emits so the
+    on-disk file is clean shippable Markdown -- not a giant ```yaml block. The
+    asset metadata (type, icp, voice) is already conveyed by the filename and
+    the in-app card; we don't need it in the file body.
+    """
     out_dir = OUTPUT_DIR / source_stem
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{asset_id}.md"
-    path.write_text(content, encoding="utf-8")
+    clean = strip_yaml_frontmatter(content)
+    path.write_text(clean, encoding="utf-8")
     return path

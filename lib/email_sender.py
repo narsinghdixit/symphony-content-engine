@@ -9,6 +9,8 @@ from email.mime.text import MIMEText
 
 import markdown
 
+from lib.textutils import strip_yaml_frontmatter
+
 
 def _first_name(email: str) -> str:
     local = email.split("@", 1)[0]
@@ -16,10 +18,10 @@ def _first_name(email: str) -> str:
     return first.capitalize() or "there"
 
 
-def _strip_yaml(text: str) -> str:
-    if text.lstrip().startswith("---"):
-        text = re.sub(r"^---.*?---\s*", "", text, count=1, flags=re.DOTALL)
-    return text.strip()
+# Local alias kept so the existing call site reads naturally. The single
+# canonical implementation now lives in lib.textutils -- both this file and
+# lib.distribution import the same function, so they can never drift apart.
+_strip_yaml = strip_yaml_frontmatter
 
 
 def render_approval_email(
@@ -67,23 +69,63 @@ def render_approval_email(
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Symphony Approval Request</title>
+  <style>
+    /* Gmail respects <style> in <head>. Some clients strip it -- that's fine,
+       the email still renders, just with default heading sizes in the body
+       preview. The inline styles on every other element guarantee the chrome
+       (header, action box, footer) always renders correctly. */
+    .symphony-brief h1, .symphony-brief h2, .symphony-brief h3,
+    .symphony-brief h4, .symphony-brief h5, .symphony-brief h6 {{
+      color: #111827;
+      font-weight: 700;
+      line-height: 1.25;
+      margin: 18px 0 8px 0;
+    }}
+    .symphony-brief h1 {{ font-size: 22px; }}
+    .symphony-brief h2 {{ font-size: 18px; }}
+    .symphony-brief h3 {{ font-size: 16px; }}
+    .symphony-brief h4, .symphony-brief h5, .symphony-brief h6 {{ font-size: 15px; }}
+    .symphony-brief p {{ margin: 8px 0; }}
+    .symphony-brief ul, .symphony-brief ol {{ margin: 8px 0 8px 22px; padding: 0; }}
+    .symphony-brief li {{ margin: 4px 0; }}
+    .symphony-brief code {{
+      background: #F3F4F6; padding: 1px 6px; border-radius: 4px;
+      font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 13px;
+    }}
+    .symphony-brief table {{ border-collapse: collapse; margin: 12px 0; width: 100%; }}
+    .symphony-brief th, .symphony-brief td {{
+      border: 1px solid #E5E7EB; padding: 6px 10px; text-align: left; font-size: 14px;
+    }}
+    .symphony-brief th {{ background: #F9FAFB; font-weight: 600; }}
+
+    /* Mobile responsiveness: collapse the 640px wrapper to fluid width on
+       phones, tighten header padding, shrink the title slightly. Without this
+       the email scrolls horizontally on most phone email clients. */
+    @media only screen and (max-width: 600px) {{
+      .symphony-shell {{ width: 100% !important; max-width: 100% !important; border-radius: 0 !important; }}
+      .symphony-pad {{ padding-left: 20px !important; padding-right: 20px !important; }}
+      .symphony-title {{ font-size: 18px !important; }}
+      .symphony-brief h1 {{ font-size: 19px; }}
+      .symphony-brief h2 {{ font-size: 17px; }}
+    }}
+  </style>
 </head>
 <body style="margin:0;padding:0;background:#F4F4F7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1F2937;line-height:1.55;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F4F4F7;padding:32px 16px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="max-width:640px;background:#FFFFFF;border-radius:16px;box-shadow:0 4px 24px rgba(15,23,42,0.06);overflow:hidden;">
+        <table role="presentation" class="symphony-shell" width="640" cellpadding="0" cellspacing="0" border="0" style="max-width:640px;background:#FFFFFF;border-radius:16px;box-shadow:0 4px 24px rgba(15,23,42,0.06);overflow:hidden;">
 
           <tr>
-            <td style="background:linear-gradient(135deg,#818CF8 0%,#A78BFA 50%,#E879F9 100%);padding:28px 36px;color:#FFFFFF;">
+            <td class="symphony-pad" style="background:linear-gradient(135deg,#818CF8 0%,#A78BFA 50%,#E879F9 100%);padding:28px 36px;color:#FFFFFF;">
               <div style="font-size:11px;letter-spacing:2.4px;font-weight:600;text-transform:uppercase;opacity:0.85;">Project Symphony</div>
-              <div style="font-size:22px;font-weight:700;margin-top:4px;">Approval Request</div>
+              <div class="symphony-title" style="font-size:22px;font-weight:700;margin-top:4px;">Approval Request</div>
               <div style="font-size:13px;opacity:0.85;margin-top:2px;">GTM Intelligence + Action Layer · PureFacts</div>
             </td>
           </tr>
 
           <tr>
-            <td style="padding:32px 36px 8px 36px;">
+            <td class="symphony-pad" style="padding:32px 36px 8px 36px;">
               <p style="margin:0 0 14px 0;font-size:16px;">Hey {name},</p>
               <p style="margin:0 0 18px 0;font-size:15px;color:#374151;">
                 Symphony just produced a strategic brief and is waiting for your sign-off before executing the campaign.
@@ -103,7 +145,7 @@ def render_approval_email(
           </tr>
 
           <tr>
-            <td style="padding:20px 36px 8px 36px;">
+            <td class="symphony-pad" style="padding:20px 36px 8px 36px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;border-spacing:0;">
                 <tr>
                   <td style="padding:18px 20px;background:#EEF2FF;border-left:4px solid #818CF8;border-radius:8px;">
@@ -116,17 +158,17 @@ def render_approval_email(
           </tr>
 
           <tr>
-            <td style="padding:24px 36px 8px 36px;">
+            <td class="symphony-pad" style="padding:24px 36px 8px 36px;">
               <div style="font-size:11px;letter-spacing:1.4px;color:#9CA3AF;text-transform:uppercase;font-weight:600;margin-bottom:6px;">Brief Preview</div>
               <div style="height:1px;background:#E5E7EB;margin-bottom:18px;"></div>
-              <div style="font-size:15px;color:#1F2937;line-height:1.6;">
+              <div class="symphony-brief" style="font-size:15px;color:#1F2937;line-height:1.6;">
                 {asset_html}
               </div>
             </td>
           </tr>
 
           <tr>
-            <td style="padding:24px 36px 32px 36px;">
+            <td class="symphony-pad" style="padding:24px 36px 32px 36px;">
               <div style="height:1px;background:#E5E7EB;margin-bottom:16px;"></div>
               <div style="font-size:12px;color:#9CA3AF;line-height:1.55;">
                 Sent by <strong style="color:#818CF8;">Project Symphony</strong> · GTM Intelligence + Action Layer at PureFacts Financial Solutions.
@@ -182,6 +224,9 @@ def send_email(
     msg.attach(MIMEText(plain_body, "plain"))
     msg.attach(MIMEText(html_body, "html"))
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+    # 30s timeout: without it a flaky network can hang the whole Streamlit
+    # rerun for minutes waiting on Gmail's SMTP. With the timeout the call
+    # fails fast and the caller falls back to the in-app approve path.
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as smtp:
         smtp.login(gmail_address, gmail_app_password)
         smtp.send_message(msg)

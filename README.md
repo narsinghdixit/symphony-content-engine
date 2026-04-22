@@ -11,7 +11,7 @@ Upload Source Document
         |
         v
 Phase 1: Intelligence
-  - Agent A (ToFu Brand Strategist)  ---debate--->  Agent B (BoFu Pipeline Strategist)
+  - Maya (Brand Strategist)  ---debate--->  Marcus (Pipeline Strategist)
         |                                                       |
         +----------------> Synthesizer Agent <------------------+
                                   |
@@ -84,7 +84,7 @@ symphony-content-engine/
 
 ## Tech Stack
 
-- **LLM**: Google Gemini (2.0 Flash for speed, 1.5 Pro for synthesis)
+- **LLM**: Google Gemini (2.5 Flash for the debate agents and the composer; 2.5 Pro for the synthesizer so Sterling thinks longer before writing the brief)
 - **App**: Streamlit
 - **Integrations**: HubSpot Marketing Email API, Gmail SMTP, LinkedIn share URLs
 - **Deployment**: Streamlit Community Cloud
