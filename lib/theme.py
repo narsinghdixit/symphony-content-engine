@@ -891,6 +891,168 @@ html, body {{
     100% {{ background-position: -200% 0; }}
 }}
 
+/* ---------- Curtain Call (distribution finale) ---------- */
+.symphony-curtain {{
+    position: relative;
+    margin: 36px 0 18px 0;
+    padding: 40px 36px 36px 36px;
+    border-radius: var(--symphony-radius-lg);
+    background: {COLORS['surface_1']};
+    border: 1px solid transparent;
+    background-image:
+      linear-gradient({COLORS['surface_1']}, {COLORS['surface_1']}),
+      {GRADIENTS['brand']};
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    box-shadow: 0 12px 48px rgba(129, 140, 248, 0.16);
+    overflow: hidden;
+    isolation: isolate;
+}}
+
+.symphony-curtain::before {{
+    content: "";
+    position: absolute;
+    top: -120px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 480px;
+    height: 240px;
+    background: radial-gradient(
+        ellipse at center,
+        rgba(167, 139, 250, 0.20) 0%,
+        rgba(129, 140, 248, 0.10) 35%,
+        rgba(129, 140, 248, 0) 70%
+    );
+    z-index: -1;
+    pointer-events: none;
+    animation: curtain-glow 6s ease-in-out infinite;
+}}
+
+@keyframes curtain-glow {{
+    0%, 100% {{ opacity: 0.85; transform: translateX(-50%) scale(1); }}
+    50%      {{ opacity: 1.00; transform: translateX(-50%) scale(1.06); }}
+}}
+
+.symphony-curtain-mark {{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: {GRADIENTS['brand']};
+    box-shadow: 0 8px 24px rgba(129, 140, 248, 0.32);
+    margin-bottom: 18px;
+    color: #FFFFFF;
+}}
+
+.symphony-curtain-eyebrow {{
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2.4px;
+    text-transform: uppercase;
+    color: {COLORS['indigo']};
+    margin-bottom: 8px;
+    font-family: var(--symphony-font-sans);
+}}
+
+.symphony-curtain-title {{
+    font-size: 38px;
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -1.2px;
+    color: {COLORS['text']};
+    margin: 0 0 6px 0;
+    font-family: var(--symphony-font-sans);
+}}
+
+.symphony-curtain-subtitle {{
+    font-size: 16px;
+    color: {COLORS['text_dim']};
+    margin: 0 0 28px 0;
+    line-height: 1.5;
+    max-width: 560px;
+}}
+
+.symphony-curtain-stats {{
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin: 28px 0 32px 0;
+    padding: 22px 24px;
+    border: 1px solid {COLORS['border']};
+    border-radius: var(--symphony-radius-md);
+    background: rgba(10, 14, 26, 0.55);
+}}
+
+.symphony-curtain-stat {{
+    flex: 1;
+    text-align: center;
+    padding: 0 16px;
+}}
+
+.symphony-curtain-stat-value {{
+    font-size: 32px;
+    font-weight: 700;
+    color: {COLORS['text']};
+    line-height: 1.1;
+    letter-spacing: -0.6px;
+    font-family: var(--symphony-font-sans);
+    background: {GRADIENTS['brand']};
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+}}
+
+.symphony-curtain-stat-label {{
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    color: {COLORS['text_mute']};
+    margin-top: 8px;
+}}
+
+.symphony-curtain-stat-divider {{
+    width: 1px;
+    align-self: stretch;
+    background: {COLORS['border']};
+    flex-shrink: 0;
+}}
+
+.symphony-curtain-tagline {{
+    font-size: 17px;
+    line-height: 1.55;
+    color: {COLORS['text_dim']};
+    font-style: italic;
+    margin: 0 0 28px 0;
+    max-width: 560px;
+}}
+
+.symphony-curtain-tagline strong {{
+    color: {COLORS['text']};
+    font-weight: 600;
+    font-style: normal;
+}}
+
+.symphony-curtain-meta {{
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 22px;
+    padding-top: 20px;
+    border-top: 1px solid {COLORS['border']};
+    font-size: 12px;
+    color: {COLORS['text_mute']};
+    letter-spacing: 0.4px;
+}}
+
+.symphony-curtain-meta strong {{
+    color: {COLORS['text_dim']};
+    font-weight: 600;
+}}
+
 /* ---------- Mobile responsiveness ---------- */
 @media (max-width: 600px) {{
     .symphony-h1 {{
@@ -917,6 +1079,28 @@ html, body {{
     }}
     .symphony-tagline {{
         font-size: 15px;
+    }}
+    .symphony-curtain {{
+        padding: 28px 22px 24px 22px;
+    }}
+    .symphony-curtain-title {{
+        font-size: 28px;
+        letter-spacing: -0.6px;
+    }}
+    .symphony-curtain-stats {{
+        flex-wrap: wrap;
+        gap: 16px 0;
+        padding: 18px 8px;
+    }}
+    .symphony-curtain-stat {{
+        flex: 0 0 50%;
+        padding: 8px 6px;
+    }}
+    .symphony-curtain-stat-divider {{
+        display: none;
+    }}
+    .symphony-curtain-stat-value {{
+        font-size: 26px;
     }}
 }}
 </style>

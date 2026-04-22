@@ -14,6 +14,7 @@ import pytest
 from lib.distribution import (
     extract_h1_title,
     hubspot_edit_url,
+    hubspot_posts_url,
     md_to_html,
     strip_yaml_frontmatter,
 )
@@ -34,9 +35,12 @@ def test_hubspot_edit_url_falls_back_when_portal_missing():
     assert hubspot_edit_url(None, "999000111") == "https://app.hubspot.com/"
 
 
-def test_hubspot_edit_url_falls_back_when_post_id_missing():
-    """If the post id is empty, also fall back -- a deep-link without a post id is broken."""
-    assert hubspot_edit_url("12345678", "") == "https://app.hubspot.com/"
+def test_hubspot_edit_url_falls_back_to_blog_manager_when_post_id_missing():
+    """If post id is missing, open the blog manager page for reliable navigation."""
+    assert (
+        hubspot_edit_url("12345678", "")
+        == "https://app.hubspot.com/blog/12345678/manage/posts/all"
+    )
 
 
 def test_hubspot_edit_url_falls_back_when_both_missing():
@@ -49,6 +53,14 @@ def test_hubspot_edit_url_handles_int_portal_id():
     way in (in discover_portal_id) but the helper itself should accept either."""
     # Strings get used as-is.
     assert "12345" in hubspot_edit_url("12345", "abc")
+
+
+def test_hubspot_posts_url_with_portal():
+    assert hubspot_posts_url("3218774") == "https://app.hubspot.com/blog/3218774/manage/posts/all"
+
+
+def test_hubspot_posts_url_without_portal():
+    assert hubspot_posts_url(None) == "https://app.hubspot.com/"
 
 
 # ---------------------------------------------------------------------------

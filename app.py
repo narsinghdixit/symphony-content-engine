@@ -1273,22 +1273,22 @@ def render_distribution_card(asset: dict, content: str):
             st.rerun()
 
         if ship_state and ship_state.get("ok"):
-            edit_url = ship_state.get("edit_url") or "https://app.hubspot.com/"
+            portal_id = ship_state.get("portal_id")
+            manage_url = ship_state.get("manage_url") or distribution.hubspot_posts_url(portal_id)
+            edit_url = ship_state.get("edit_url") or manage_url
             post_title = ship_state.get("title", "")
             post_id = ship_state.get("post_id", "")
 
-            # 1) Auto-open HubSpot in a new tab the first time we render this
-            #    success state. We track via session_state so a Streamlit rerun
-            #    doesn't re-open the tab on every refresh. Popup blockers may
-            #    suppress this since the gesture chain is broken by the rerun;
-            #    the manual button below is the always-works fallback.
+            # 1) Auto-open the blog manager view (more reliable than deep-links
+            #    across portal permissions + stale editor routes). We track via
+            #    session_state so reruns don't keep opening tabs.
             opened_key = f"hs_opened_{asset_id}"
             if not st.session_state.get(opened_key):
                 components.html(
                     f"""
                     <script>
                       try {{
-                        window.open({json.dumps(edit_url)}, '_blank', 'noopener,noreferrer');
+                        window.open({json.dumps(manage_url)}, '_blank', 'noopener,noreferrer');
                       }} catch (e) {{}}
                     </script>
                     """,
@@ -1296,10 +1296,7 @@ def render_distribution_card(asset: dict, content: str):
                 )
                 st.session_state[opened_key] = True
 
-            # 2) Visceral success state: title + post id + a prominent gradient
-            #    "View in HubSpot" button (the always-works fallback for popup
-            #    blockers + the audience's primary visual cue that something
-            #    real just happened).
+            # 2) Visceral success state: title + post id + reliable primary CTA.
             check_svg = icon("check-circle", size=20, color=COLORS["success"], stroke=2.0)
             ext_svg = icon("external-link", size=14, color="#FFFFFF", stroke=2.0)
             st.markdown(
@@ -1318,14 +1315,22 @@ def render_distribution_card(asset: dict, content: str):
                 unsafe_allow_html=True,
             )
             st.markdown(
-                f'<a href="{edit_url}" target="_blank" rel="noopener" '
+                f'<a href="{manage_url}" target="_blank" rel="noopener" '
                 f'style="display:inline-flex;align-items:center;gap:8px;'
                 f'margin-top:10px;padding:11px 20px;'
                 f'background:{GRADIENTS["brand"]};border:none;color:white;text-decoration:none;'
                 f'border-radius:12px;font-weight:600;font-size:14px;letter-spacing:0.1px;'
-                f'box-shadow:0 4px 16px rgba(129,140,248,0.30);">View in HubSpot{ext_svg}</a>',
+                f'box-shadow:0 4px 16px rgba(129,140,248,0.30);">View in HubSpot Blog Posts{ext_svg}</a>',
                 unsafe_allow_html=True,
             )
+            if edit_url != manage_url and "/edit/" in edit_url:
+                st.markdown(
+                    f'<a href="{edit_url}" target="_blank" rel="noopener" '
+                    f'style="display:inline-flex;align-items:center;margin-top:8px;'
+                    f'color:{COLORS["indigo"]};text-decoration:none;font-size:13px;font-weight:600;">'
+                    f"Open Draft Editor Directly</a>",
+                    unsafe_allow_html=True,
+                )
 
     elif distribution_kind == "email_approval":
         if st.button("Send for Review", key=f"action_em_{asset_id}",
@@ -1363,6 +1368,99 @@ def render_distribution_card(asset: dict, content: str):
         )
 
     st.markdown('<div style="height:14px;"></div>', unsafe_allow_html=True)
+
+
+def _format_composition_time(total_seconds: float) -> str:
+    """Render a compact mm·ss / Xs label for the curtain-call composition stat."""
+    if total_seconds <= 0:
+        return "0s"
+    rounded = int(round(total_seconds))
+    if rounded < 60:
+        return f"{rounded}s"
+    minutes, seconds = divmod(rounded, 60)
+    return f"{minutes}m {seconds:02d}s"
+
+
+def render_curtain_call():
+    """Closing 'Conductor's Curtain Call' panel for Movement III.
+
+    Replaces the bare 'New Performance' button with a calm finale:
+    brand mark, headline, three honest stats, a closing line, and a
+    single primary 'Encore' CTA. No game elements -- this is the bow,
+    not another act.
+    """
+    n_assets = len(st.session_state.assets)
+    n_shipped = sum(
+        1 for s in st.session_state.ship_status.values() if s and s.get("ok")
+    )
+    shipped_categories = {
+        a["category"]
+        for a in composer.ASSETS
+        if (st.session_state.ship_status.get(a["id"]) or {}).get("ok")
+    }
+    n_channels = len(shipped_categories)
+
+    total_compose_seconds = sum(
+        float(meta.get("elapsed") or 0.0)
+        for meta in st.session_state.assets.values()
+    )
+    compose_label = _format_composition_time(total_compose_seconds)
+
+    sparkle = icon("sparkles", size=24, color="#FFFFFF", stroke=2.0)
+    source_label = escape_dollars(st.session_state.source_stem or "this performance")
+
+    st.markdown(
+        f"""
+        <div class="symphony-curtain">
+          <div class="symphony-curtain-mark">{sparkle}</div>
+          <div class="symphony-curtain-eyebrow">Finale · The Curtain Call</div>
+          <h2 class="symphony-curtain-title">Performance complete.</h2>
+          <p class="symphony-curtain-subtitle">
+            {source_label} composed, distributed, and delivered. The campaign is in market.
+          </p>
+
+          <div class="symphony-curtain-stats">
+            <div class="symphony-curtain-stat">
+              <div class="symphony-curtain-stat-value">{n_assets}</div>
+              <div class="symphony-curtain-stat-label">Assets composed</div>
+            </div>
+            <div class="symphony-curtain-stat-divider"></div>
+            <div class="symphony-curtain-stat">
+              <div class="symphony-curtain-stat-value">{n_shipped}</div>
+              <div class="symphony-curtain-stat-label">Assets shipped</div>
+            </div>
+            <div class="symphony-curtain-stat-divider"></div>
+            <div class="symphony-curtain-stat">
+              <div class="symphony-curtain-stat-value">{n_channels}</div>
+              <div class="symphony-curtain-stat-label">Channels activated</div>
+            </div>
+            <div class="symphony-curtain-stat-divider"></div>
+            <div class="symphony-curtain-stat">
+              <div class="symphony-curtain-stat-value">{compose_label}</div>
+              <div class="symphony-curtain-stat-label">Composition time</div>
+            </div>
+          </div>
+
+          <p class="symphony-curtain-tagline">
+            From <strong>one source</strong>, a complete campaign.<br>
+            Three movements. One performance. <strong>Yours.</strong>
+          </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown('<div style="height:14px;"></div>', unsafe_allow_html=True)
+    cols = st.columns([1, 1, 2])
+    with cols[0]:
+        if st.button("Encore — New Performance", type="primary", use_container_width=True):
+            reset_session_to_defaults()
+            st.rerun()
+    with cols[1]:
+        if st.button("Return to Upload", use_container_width=True):
+            reset_session_to_defaults()
+            st.session_state.phase = "idle"
+            st.rerun()
 
 
 def render_distribution_phase():
@@ -1411,12 +1509,7 @@ def render_distribution_phase():
             if content:
                 render_distribution_card(asset, content)
 
-    st.markdown('<div style="height:36px;"></div>', unsafe_allow_html=True)
-    cols = st.columns([1, 3])
-    with cols[0]:
-        if st.button("↻  New Performance", use_container_width=True):
-            reset_session_to_defaults()
-            st.rerun()
+    render_curtain_call()
 
 
 # ---------------------------------------------------------------------------

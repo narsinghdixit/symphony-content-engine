@@ -24,6 +24,7 @@ from lib.textutils import strip_yaml_frontmatter as _strip_yaml_canonical
 
 LINKEDIN_COMPOSE_URL = "https://www.linkedin.com/feed/?shareActive=true"
 HUBSPOT_API_BASE = "https://api.hubapi.com"
+HUBSPOT_APP_BASE = "https://app.hubspot.com"
 
 
 # ---------------------------------------------------------------------------
@@ -159,8 +160,15 @@ def discover_portal_id(token: str) -> str | None:
 def hubspot_edit_url(portal_id: str | None, post_id: str) -> str:
     """Build the deep-link URL to edit a blog post inside HubSpot's UI."""
     if portal_id and post_id:
-        return f"https://app.hubspot.com/blog/{portal_id}/edit/{post_id}/content"
-    return "https://app.hubspot.com/"
+        return f"{HUBSPOT_APP_BASE}/blog/{portal_id}/edit/{post_id}/content"
+    return hubspot_posts_url(portal_id)
+
+
+def hubspot_posts_url(portal_id: str | None) -> str:
+    """Build a reliable HubSpot blog manager URL for this portal."""
+    if portal_id:
+        return f"{HUBSPOT_APP_BASE}/blog/{portal_id}/manage/posts/all"
+    return f"{HUBSPOT_APP_BASE}/"
 
 
 def push_blog_to_hubspot(
@@ -214,6 +222,7 @@ def push_blog_to_hubspot(
                 "blog_id": blog_id,
                 "portal_id": portal_id,
                 "edit_url": hubspot_edit_url(portal_id, post_id),
+                "manage_url": hubspot_posts_url(portal_id),
                 "created_at": datetime.utcnow().isoformat(),
             }
         msg = (r.json() or {}).get("message", r.text[:200])

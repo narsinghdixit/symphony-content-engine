@@ -42,16 +42,26 @@ def render_approval_email(
     body_md = _strip_yaml(asset_md)
     asset_html = markdown.markdown(body_md, extensions=["tables", "fenced_code"])
 
+    context_note = f" from your latest source ({source_label})" if source_label else ""
+    intro_html = (
+        f"Maya, Marcus, and I put together this {asset_label.lower()}{context_note}. "
+        "Take a look below and tell me if we should execute or revise."
+    )
+    intro_plain = (
+        f"Maya, Marcus, and I put together this {asset_label}{context_note}. "
+        "Take a look below and tell me if we should execute or revise."
+    )
+
     if approve_url:
         action_block = f"""
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 0 0;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 0 0;">
           <tr>
             <td align="center">
-              <a href="{approve_url}" target="_blank" style="display:inline-block;background:linear-gradient(135deg,#818CF8 0%,#A78BFA 50%,#E879F9 100%);color:#FFFFFF;text-decoration:none;font-weight:700;padding:14px 28px;border-radius:12px;font-size:15px;letter-spacing:0.3px;box-shadow:0 4px 16px rgba(129,140,248,0.40);">Approve and Execute</a>
+              <a href="{approve_url}" target="_blank" style="display:inline-block;background:#4338CA;background-image:linear-gradient(135deg,#4F46E5 0%,#4338CA 100%);border:1px solid #312E81;color:#FFFFFF !important;-webkit-text-fill-color:#FFFFFF;text-decoration:none;font-weight:700;padding:13px 24px;border-radius:12px;font-size:15px;letter-spacing:0.2px;line-height:1.2;box-shadow:0 6px 16px rgba(67,56,202,0.35);">Approve and Execute</a>
             </td>
           </tr>
         </table>
-        <p style="text-align:center;font-size:12px;color:#9CA3AF;margin-top:12px;">Or reply with your feedback to revise the brief.</p>
+        <p style="text-align:center;font-size:12px;color:#6B7280;margin:10px 0 0 0;">Or reply with your feedback to revise the brief.</p>
         """
     else:
         action_block = """
@@ -111,13 +121,13 @@ def render_approval_email(
   </style>
 </head>
 <body style="margin:0;padding:0;background:#F4F4F7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1F2937;line-height:1.55;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F4F4F7;padding:32px 16px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F4F4F7;padding:16px 12px;">
     <tr>
       <td align="center">
-        <table role="presentation" class="symphony-shell" width="640" cellpadding="0" cellspacing="0" border="0" style="max-width:640px;background:#FFFFFF;border-radius:16px;box-shadow:0 4px 24px rgba(15,23,42,0.06);overflow:hidden;">
+        <table role="presentation" class="symphony-shell" width="640" cellpadding="0" cellspacing="0" border="0" style="max-width:640px;background:#FFFFFF;border-radius:14px;box-shadow:0 4px 20px rgba(15,23,42,0.06);overflow:hidden;">
 
           <tr>
-            <td class="symphony-pad" style="background:linear-gradient(135deg,#818CF8 0%,#A78BFA 50%,#E879F9 100%);padding:28px 36px;color:#FFFFFF;">
+            <td class="symphony-pad" style="background:#4F46E5;background-image:linear-gradient(135deg,#4F46E5 0%,#7C3AED 100%);padding:20px 28px;color:#FFFFFF;">
               <div style="font-size:11px;letter-spacing:2.4px;font-weight:600;text-transform:uppercase;opacity:0.85;">Project Symphony</div>
               <div class="symphony-title" style="font-size:22px;font-weight:700;margin-top:4px;">Approval Request</div>
               <div style="font-size:13px;opacity:0.85;margin-top:2px;">GTM Intelligence + Action Layer · PureFacts</div>
@@ -125,13 +135,16 @@ def render_approval_email(
           </tr>
 
           <tr>
-            <td class="symphony-pad" style="padding:32px 36px 8px 36px;">
-              <p style="margin:0 0 14px 0;font-size:16px;">Hey {name},</p>
-              <p style="margin:0 0 18px 0;font-size:15px;color:#374151;">
-                Symphony just produced a strategic brief and is waiting for your sign-off before executing the campaign.
+            <td class="symphony-pad" style="padding:20px 28px 6px 28px;">
+              <p style="margin:0 0 10px 0;font-size:16px;">Hey {name},</p>
+              <p style="margin:0 0 12px 0;font-size:15px;color:#374151;">
+                {intro_html}
+              </p>
+              <p style="margin:0 0 10px 0;font-size:15px;color:#374151;">
+                Thanks,<br><strong>Sterling</strong>
               </p>
 
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 0 0;border-collapse:separate;border-spacing:0;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 0 0;border-collapse:separate;border-spacing:0;">
                 <tr>
                   <td style="padding:14px 18px;background:#F9FAFB;border:1px solid #E5E7EB;border-radius:10px;">
                     <div style="font-size:11px;letter-spacing:1.2px;color:#6B7280;text-transform:uppercase;font-weight:600;">Asset</div>
@@ -145,11 +158,11 @@ def render_approval_email(
           </tr>
 
           <tr>
-            <td class="symphony-pad" style="padding:20px 36px 8px 36px;">
+            <td class="symphony-pad" style="padding:14px 28px 6px 28px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;border-spacing:0;">
                 <tr>
-                  <td style="padding:18px 20px;background:#EEF2FF;border-left:4px solid #818CF8;border-radius:8px;">
-                    <div style="font-size:13px;font-weight:700;color:#4338CA;letter-spacing:0.4px;text-transform:uppercase;margin-bottom:12px;">How to respond</div>
+                  <td style="padding:16px 18px;background:#EEF2FF;border-left:4px solid #6366F1;border-radius:8px;">
+                    <div style="font-size:13px;font-weight:700;color:#4338CA;letter-spacing:0.4px;text-transform:uppercase;margin-bottom:10px;">How to respond</div>
                     {action_block}
                   </td>
                 </tr>
@@ -158,9 +171,9 @@ def render_approval_email(
           </tr>
 
           <tr>
-            <td class="symphony-pad" style="padding:24px 36px 8px 36px;">
+            <td class="symphony-pad" style="padding:18px 28px 6px 28px;">
               <div style="font-size:11px;letter-spacing:1.4px;color:#9CA3AF;text-transform:uppercase;font-weight:600;margin-bottom:6px;">Brief Preview</div>
-              <div style="height:1px;background:#E5E7EB;margin-bottom:18px;"></div>
+              <div style="height:1px;background:#E5E7EB;margin-bottom:14px;"></div>
               <div class="symphony-brief" style="font-size:15px;color:#1F2937;line-height:1.6;">
                 {asset_html}
               </div>
@@ -168,8 +181,8 @@ def render_approval_email(
           </tr>
 
           <tr>
-            <td class="symphony-pad" style="padding:24px 36px 32px 36px;">
-              <div style="height:1px;background:#E5E7EB;margin-bottom:16px;"></div>
+            <td class="symphony-pad" style="padding:18px 28px 22px 28px;">
+              <div style="height:1px;background:#E5E7EB;margin-bottom:12px;"></div>
               <div style="font-size:12px;color:#9CA3AF;line-height:1.55;">
                 Sent by <strong style="color:#818CF8;">Project Symphony</strong> · GTM Intelligence + Action Layer at PureFacts Financial Solutions.
               </div>
@@ -191,7 +204,9 @@ def render_approval_email(
 
     plain = (
         f"Hey {name},\n\n"
-        f"Symphony just produced a strategic brief and is waiting for your sign-off before executing the campaign.\n\n"
+        f"{intro_plain}\n\n"
+        f"Thanks,\n"
+        f"Sterling\n\n"
         f"Asset: {asset_label}\n"
         f"Source: {source_label}\n"
         f"Generated: {timestamp}\n\n"
