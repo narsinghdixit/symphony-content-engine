@@ -43,17 +43,40 @@ def strip_yaml_frontmatter(md: str) -> str:
 
 
 def extract_h1_title(md: str) -> tuple[str, str]:
-    """Return (title, body_without_h1). Falls back to a default title."""
+    """Return (title, body_without_title_line).
+
+    Lookup order:
+      1. First H1 line (`# Title`)              -- canonical
+      2. First H2 line (`## Title`)             -- defensive fallback for when
+         Gemini emits the title at H2 level (drift-prone at temperature 0.75).
+      3. "Untitled" if neither is found         -- last resort
+
+    The matched heading line is stripped from the returned body so HubSpot
+    doesn't show the title twice (once as post name, once as section heading).
+    """
     lines = md.splitlines()
-    title = "Untitled"
-    body_start = 0
+
+    h1_idx: int | None = None
+    h2_idx: int | None = None
     for i, line in enumerate(lines):
         s = line.strip()
-        if s.startswith("# "):
-            title = s[2:].strip()
-            body_start = i + 1
-            break
-    return title, "\n".join(lines[body_start:]).strip()
+        if h1_idx is None and s.startswith("# ") and not s.startswith("## "):
+            h1_idx = i
+            break  # H1 wins outright; no need to keep scanning
+        if h2_idx is None and s.startswith("## ") and not s.startswith("### "):
+            h2_idx = i
+
+    if h1_idx is not None:
+        title = lines[h1_idx].strip()[2:].strip()
+        body = "\n".join(lines[h1_idx + 1:]).strip()
+        return title, body
+
+    if h2_idx is not None:
+        title = lines[h2_idx].strip()[3:].strip()
+        body = "\n".join(lines[:h2_idx] + lines[h2_idx + 1:]).strip()
+        return title, body
+
+    return "Untitled", "\n".join(lines).strip()
 
 
 def md_to_html(md: str) -> str:

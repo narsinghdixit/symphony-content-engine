@@ -69,11 +69,15 @@ ASSETS = [
         "category": "blog",
         "distribution": "hubspot",
         "spec": (
-            "600-800 word blog post in PureFacts corporate voice. **Title MUST be 65 characters "
-            "or fewer.** Open with the counterintuitive insight from EXTRACT (2-3 sentence hook). "
-            "Three sections: The Problem (~200 words, expand with data), Why This Matters Now "
-            "(~150 words, why-now from positioning.md), A Better Approach (~200 words, PureFacts "
-            "philosophy + proof points). Closing CTA linking to https://purefacts.com/contact/."
+            "600-800 word blog post in PureFacts corporate voice. "
+            "**Title MUST be 65 characters or fewer AND MUST be the very first body line, "
+            "formatted as a Markdown H1: `# Your Title Here` (single hash + space). "
+            "Do NOT use H2 (`##`) for the title. Do NOT skip the title line.** "
+            "Open with the counterintuitive insight from EXTRACT (2-3 sentence hook). "
+            "Three sections, each as H2 (`## Section Name`): The Problem (~200 words, expand "
+            "with data), Why This Matters Now (~150 words, why-now from positioning.md), "
+            "A Better Approach (~200 words, PureFacts philosophy + proof points). "
+            "Closing CTA linking to https://purefacts.com/contact/."
         ),
     },
     {

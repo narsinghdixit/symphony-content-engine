@@ -101,10 +101,63 @@ def test_extract_h1_title_only_picks_first_h1():
     assert "# Second Title" in body
 
 
-def test_extract_h1_title_ignores_h2_and_h3():
+def test_extract_h1_title_falls_back_to_h2_when_no_h1():
+    """Gemini at temp 0.75 sometimes emits ## instead of # for the title.
+    Defensive parser: fall back to first H2 so HubSpot doesn't get 'Untitled'.
+    """
     md = "## Subhead first\n\nBody."
-    title, _ = extract_h1_title(md)
+    title, body = extract_h1_title(md)
+    assert title == "Subhead first"
+    assert body == "Body."
+
+
+def test_extract_h1_title_strips_h2_title_line_from_body():
+    """When H2 is the title, that line must NOT also appear in the post body
+    (otherwise HubSpot renders it twice: once as title, once as a section)."""
+    md = "## My H2 Title\n\n## Real Subhead\n\nBody text."
+    title, body = extract_h1_title(md)
+    assert title == "My H2 Title"
+    assert "## My H2 Title" not in body
+    assert "## Real Subhead" in body
+    assert "Body text." in body
+
+
+def test_extract_h1_title_h1_wins_when_present():
+    """If both H1 and H2 exist, H1 is the chosen title.
+
+    Note: anything BEFORE the H1 line is dropped (treated as preamble).
+    This mirrors the long-standing behavior -- titles are expected to
+    lead the document, and Gemini consistently emits them that way.
+    """
+    md = "# The Real Title\n\n## Section A\n\nBody."
+    title, body = extract_h1_title(md)
+    assert title == "The Real Title"
+    assert "# The Real Title" not in body
+    assert "## Section A" in body
+    assert "Body." in body
+
+
+def test_extract_h1_title_h3_not_used_as_fallback():
+    """H3 must NOT promote to title -- only H1 and H2 are valid title carriers."""
+    md = "### Just a deep heading\n\nNo title here."
+    title, body = extract_h1_title(md)
     assert title == "Untitled"
+    assert "### Just a deep heading" in body
+
+
+def test_extract_h1_title_regression_invisible_invoice():
+    """Direct regression: this is the exact shape that landed as 'Untitled'
+    in HubSpot in the Apr 22 demo run -- ## title + ### sections + body."""
+    md = (
+        "## The Invisible Invoice: True Cost of Regulatory Fines\n\n"
+        "Financial services firms often view regulatory fines as a discrete cost.\n\n"
+        "### The Problem: Beyond the Sticker Price\n\n"
+        "The true cost extends far beyond the check amount.\n"
+    )
+    title, body = extract_h1_title(md)
+    assert title == "The Invisible Invoice: True Cost of Regulatory Fines"
+    assert "## The Invisible Invoice" not in body
+    assert "### The Problem" in body
 
 
 # ---------------------------------------------------------------------------
